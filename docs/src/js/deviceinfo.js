@@ -148,6 +148,113 @@ export function renderDeviceInfo(container, results) {
     container.append(sec);
   }
 
+  // ---- User Agent Analysis ----------------------------------------------
+  {
+    const sec = section("User Agent Analysis",
+      "The User-Agent string is a list of product tokens. Most are historical padding — Mozilla/5.0 appears in every modern browser, AppleWebKit appears in Chromium, and Safari appears in browsers that are not Safari.");
+
+    const tokens = browser.uaTokens || {};
+    const products = Array.isArray(tokens.products) ? tokens.products : [];
+
+    const uaRows = [
+      row("Full User-Agent String", browser.userAgent || navigator.userAgent, "client"),
+      row("Product Comments", tokens.comments?.length ? tokens.comments.join(" | ") : "None", "client"),
+      row("Tail (post-comment products)", tokens.tail || "None", "client"),
+    ];
+
+    for (const p of products) {
+      const label = p.greased ? `${p.name} (grease token)` : p.name;
+      uaRows.push(row(label, p.version || "—", "client",
+        p.greased ? "Deliberately vague token inserted by Chromium to stop sites hardcoding a brand list." : null));
+    }
+
+    uaRows.push(row("Grease Token Count", tokens.greasedCount ?? 0, "client"));
+    uaRows.push(row("Engine Tokens Present", tokens.engineTokens?.length ? tokens.engineTokens.join(", ") : "None", "client"));
+
+    addRows(sec, uaRows);
+    container.append(sec);
+  }
+
+  // ---- Browser Identity Strings ------------------------------------------
+  {
+    const sec = section("Browser Identity Strings",
+      "Raw identity strings the browser publishes on navigator. Legacy fields, still shipped and still identifying.");
+
+    const identity = results.find((r) => r.id === "identity")?.values || {};
+
+    addRows(sec, [
+      row("navigator.appVersion", identity.appVersion || "absent", "client",
+        "A duplicate of userAgent. One of the oldest fingerprinting surfaces."),
+      row("navigator.product", identity.product || "absent", "client"),
+      row("navigator.productSub", identity.productSub || "absent", "client",
+        "A 2004-era field with a near-fixed value on some browsers."),
+      row("navigator.vendor", identity.vendor || "absent", "client"),
+      row("navigator.oscpu", identity.oscpu || "absent", "client",
+        "Firefox-only. Reports the underlying OS build."),
+      row("navigator.standalone", identity.standalone === null ? "absent" : String(identity.standalone), "client"),
+      row("navigator.pdfViewerEnabled", identity.pdfViewerEnabled ? "Yes" : "No", "client"),
+      row("navigator.webdriver", identity.webdriver ? "true — automated browser" : "false", "client"),
+      row("navigator.platform", typeof navigator.platform === "string" ? navigator.platform : "absent", "client"),
+      row("User-Agent Hash (SHA-256)", identity.userAgentHash || "unavailable", "client",
+        "A stable identifier for the exact UA string. Computed in this tab."),
+    ]);
+    container.append(sec);
+  }
+
+  // ---- Client Hints (full) -----------------------------------------------
+  {
+    const sec = section("Client Hints",
+      "The modern replacement for the UA string. These values are sent only when the browser chooses to send them, and they carry more identifying detail than the UA — which is why the UA is being frozen.");
+
+    const fullVersionList = Array.isArray(hints.fullVersionList)
+      ? hints.fullVersionList.map((b) => `${b.brand} ${b.version}`).join(", ")
+      : "Not available";
+
+    addRows(sec, [
+      row("userAgentData Supported", hints.brands ? "Yes" : "No", hints.brands ? "client" : "blocked",
+        hints.brands ? null : "Firefox and Safari do not implement Client Hints."),
+      row("Full Version List", fullVersionList, hints.fullVersionList ? "client" : "blocked"),
+      row("Platform Version (resolved)", hints.platformVersionLabel || "Unknown", hints.platformVersionLabel ? "client" : "blocked"),
+      row("Architecture", hints.architecture || "Unknown", "client",
+        "The true CPU architecture — the closest a page gets to a hardware model number."),
+      row("Model", hints.model || "(empty)", "client",
+        "Empty on desktop. Populated on Android and ChromeOS, where it narrows to a specific device."),
+      row("WoW64", hints.wow64 === true ? "Yes" : hints.wow64 === false ? "No" : "Unknown", "client",
+        "WoW64 means a 32-bit browser running on 64-bit Windows."),
+    ]);
+    container.append(sec);
+  }
+
+  // ---- Browser Capabilities ----------------------------------------------
+  {
+    const sec = section("Browser Capabilities",
+      "Which APIs this build exposes. Each one is a fraction of a bit, but the vector as a whole pins the browser version more precisely than the UA string does.");
+
+    const vectors = features.vectors || {};
+    const capRows = [];
+
+    if (vectors.navigator) {
+      const total = vectors.navigator.present.length + vectors.navigator.absent.length;
+      capRows.push(row("navigator APIs Present", `${vectors.navigator.presentCount} of ${total}`, "client"));
+      capRows.push(row("navigator APIs Missing", vectors.navigator.absent.join(", ") || "None", "client"));
+    }
+    if (vectors.window) {
+      capRows.push(row("window APIs Present", `${vectors.window.presentCount}`, "client"));
+    }
+
+    const cssSupported = features.css?.supported || [];
+    capRows.push(row("CSS Features Supported", `${cssSupported.length}`, "client"));
+    for (const feat of cssSupported.slice(0, 12)) {
+      capRows.push(row(feat, "Supported", "client"));
+    }
+    capRows.push(row("Summary", features.summary
+      ? `${features.summary.jsApisPresent} JS APIs, ${features.summary.cssFeaturesPresent} CSS features`
+      : "Unknown", "client"));
+
+    addRows(sec, capRows);
+    container.append(sec);
+  }
+
   // ---- Device & OS -----------------------------------------------------
   {
     const sec = section("Device Type & Operating System",

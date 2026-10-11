@@ -426,6 +426,72 @@ function consistencyChecks(ua, browser, hints) {
 }
 
 /* ------------------------------------------------------------------ */
+/* UA token analysis                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Split the User-Agent string into its constituent product tokens.
+ *
+ * A UA string is a list of product comments in parentheses, plus a final
+ * engine token. Most are historical lying: "Mozilla/5.0" is a 1993 token every
+ * browser still ships to pretend to be Netscape, "AppleWebKit" appears in
+ * Chromium, and "Safari" appears in every WebKit browser including Chrome's
+ * iOS build.
+ *
+ * Decomposing the string is the most direct way to show this -- it makes the
+ * padding visible rather than asking you to take it on trust.
+ */
+function analyzeUaTokens(ua) {
+  // Parenthesised product comments, e.g. "(X11; Linux x86_64)".
+  const comments = (ua.match(/\([^)]*\)/g) || []).map((c) => c.slice(1, -1));
+
+  // Trailing slash-delimited products after the closing parenthesis.
+  const tail = ua.slice(ua.lastIndexOf(")") + 1).trim();
+
+  // Grease: Chromium inserts deliberately vague tokens to stop sites building
+  // a stable allowlist of brands.
+  const GREASE = /not.?a.?brand|not.?a.?brand|\bnot\(.?a.?brand\)?/i;
+
+  const products = [];
+  for (const token of tail.split(/\s+/).filter(Boolean)) {
+    const [rawName, rawVersion] = token.split("/");
+    if (!rawName) continue;
+    products.push({
+      token: token,
+      name: rawName,
+      version: rawVersion ?? null,
+      greased: GREASE.test(rawName),
+    });
+  }
+
+  // Classify each product so the padding is explicit.
+  const classification = {
+    mozilla: /Mozilla\/5\.0/.test(tail),
+    gecko: /Gecko\/\d/.test(ua),
+    webkit: /AppleWebKit\/\d/.test(ua),
+    blink: /Chrome\/\d|Chromium\/\d/.test(tail),
+    trident: /Trident\/\d/.test(ua),
+    edgehtml: /Edge\/\d/.test(tail),
+    presto: /Presto\//.test(tail),
+  };
+
+  return {
+    comments,
+    tail: tail || null,
+    products,
+    greasedCount: products.filter((p) => p.greased).length,
+    engineTokens: Object.entries(classification)
+      .filter(([, present]) => present)
+      .map(([name]) => name),
+    note:
+      "Mozilla/5.0, AppleWebKit and Safari are padding present in most modern " +
+      "browser strings. Chromium is a WebKit fork but still ships the " +
+      "AppleWebKit token. Grease tokens are inserted by Chromium to stop " +
+      "sites hardcoding a stable brand list.",
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Main                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -517,6 +583,7 @@ export const probe = {
       userAgent: ua,
       ...result,
       clientHintsBrands: hints.brands,
+      uaTokens: analyzeUaTokens(ua),
       note:
         "Browser identity comes from the UA string and is cross-checked " +
         "against Client Hints. Where they disagree — a UA claiming Chrome " +

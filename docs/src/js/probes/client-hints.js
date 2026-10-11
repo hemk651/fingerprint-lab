@@ -56,6 +56,7 @@ export const probe = {
         "platformVersion",
         "uaFullVersion",
         "wow64",
+        "fullVersionList",
       ]);
     } catch {
       high = { error: "withheld" };
@@ -76,6 +77,7 @@ export const probe = {
       platformVersion: high.platformVersion ?? null,
       platformVersionLabel: windowsLabel,
       uaFullVersion: high.uaFullVersion ?? null,
+      fullVersionList: Array.isArray(high.fullVersionList) ? high.fullVersionList : null,
       wow64: typeof high.wow64 === "boolean" ? high.wow64 : null,
       note:
         "The only place Brave, Windows 11 and the true CPU architecture " +
