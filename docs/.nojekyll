@@ -1,0 +1,3 @@
+# Disables Jekyll processing on GitHub Pages so the site is served as plain
+# static files. Without this, Pages runs files through Jekyll, which ignores
+# nothing here but adds build time and can reinterpret filenames.

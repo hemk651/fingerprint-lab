@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fingerprint Lab — what your browser reveals without being asked</title>
+<meta name="description" content="A client-side browser fingerprinting demonstration. Every value is computed in your tab; nothing is transmitted or stored.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<!-- No favicon request: a data URI never leaves the document. -->
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to results</a>
+
+<header class="masthead">
+  <div class="wrap">
+    <p class="eyebrow">Client-side only · no requests · no storage</p>
+    <h1>Fingerprint&nbsp;Lab</h1>
+    <p class="lede">
+      A browser fingerprinting demonstration. It runs the same primitives a
+      tracking site runs — canvas, WebGL, audio, fonts, API surface — and then
+      shows you exactly what came back and how much of it narrows you down.
+      Everything you are about to read was computed inside this tab.
+    </p>
+  </div>
+</header>
+
+<section class="disclosure" aria-label="What this page does and does not do">
+  <div class="wrap disclosure-grid">
+    <div class="disclosure-block disclosure-yes">
+      <h2>What happens here</h2>
+      <ul>
+        <li>Reads properties this browser makes available to any page</li>
+        <li>Renders to offscreen canvases and hashes the output</li>
+        <li>Measures glyph widths to detect installed fonts</li>
+        <li>Queries permission <em>states</em> without requesting them</li>
+        <li>Displays the result to you, in full</li>
+      </ul>
+    </div>
+    <div class="disclosure-block disclosure-no">
+      <h2>What never happens here</h2>
+      <ul>
+        <li>No <code>fetch</code>, <code>XHR</code>, beacon or WebSocket</li>
+        <li>No IP address — no server is ever contacted</li>
+        <li>No geolocation, camera, microphone or clipboard request</li>
+        <li>No cookies, no <code>localStorage</code>, no IndexedDB write</li>
+        <li>No keystroke or pointer tracking</li>
+        <li>No third-party resources — no fonts, scripts or images</li>
+      </ul>
+    </div>
+  </div>
+  <p class="wrap disclosure-verify">
+    Verify it yourself: open your browser's Network panel, then reload this
+    page. The only requests are this document, the stylesheet and the script.
+    Disconnect from the internet before reloading and it still works.
+  </p>
+</section>
+
+<main id="main" class="wrap">
+
+  <section class="controls" aria-label="Controls">
+    <button id="rerun" type="button" class="btn btn-primary">Run again</button>
+    <button id="copy" type="button" class="btn" disabled>Copy report</button>
+    <button id="download" type="button" class="btn" disabled>Download JSON</button>
+    <p id="status" class="status" role="status" aria-live="polite">Starting…</p>
+  </section>
+
+  <div id="progress" class="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0">
+    <div id="progress-bar" class="progress-bar"></div>
+  </div>
+  <p id="progress-label" class="progress-label">0 signals</p>
+
+  <section id="summary" class="summary" aria-live="polite" aria-busy="true"></section>
+
+  <section id="signals" class="signals" aria-live="polite">
+    <p class="placeholder">Running probes.</p>
+  </section>
+
+  <section id="deviceinfo" class="deviceinfo" aria-live="polite">
+    <div class="di-header">
+      <h2>Device Info Report</h2>
+      <p class="di-sub">
+        A complete device-info report, organised by category. Every value is tagged
+        by how it was obtained — <span class="di-tag di-tag-client">client-side</span>,
+        <span class="di-tag di-tag-blocked">withheld</span>,
+        <span class="di-tag di-tag-permission">permission required</span>, or
+        <span class="di-tag di-tag-server">requires server</span>.
+        The last category is the honest half: those fields appear on device-info
+        sites but cannot be detected from the browser.
+      </p>
+    </div>
+    <div id="deviceinfo-report"></div>
+  </section>
+
+  <section id="scale" class="scale"></section>
+
+  <footer class="page-footer">
+    <h2>Why this exists</h2>
+    <p>
+      Fingerprinting is not exotic. It is the ordinary consequence of a
+      browser that describes the machine it is running on in enough detail to
+      lay out a page nicely. Every signal below was volunteered to this page
+      by your browser, without being asked, because rendering a page requires
+      it. The engineering skill being demonstrated here is the same skill a
+      tracking company uses — the difference is that this page shows you the
+      answer instead of selling it.
+    </p>
+    <p>
+      If you want to reduce your own number, the levers are: a browser that
+      resists fingerprinting (Brave, Tor Browser, Firefox with
+      <code>privacy.resistFingerprinting</code>), a standard window size, a
+      default time zone, a common font set, and no unusual extensions.
+      Note how each of those costs you something in convenience — that trade
+      is the actual research question.
+    </p>
+  </footer>
+
+</main>
+
+<script type="module" src="src/js/app.js"></script>
+</body>
+</html>

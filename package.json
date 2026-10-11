@@ -1,0 +1,11 @@
+{
+  "name": "fingerprint-lab",
+  "version": "1.0.0",
+  "description": "Client-side browser fingerprinting demonstration. Runs entirely in the visitor's tab; nothing is transmitted.",
+  "type": "module",
+  "scripts": {
+    "start": "cd docs && python3 -m http.server 8000",
+    "test": "node tests/verify-browser.mjs"
+  },
+  "license": "MIT"
+}
