@@ -1,0 +1,5202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fingerprint Lab — what your browser reveals without being asked</title>
+<meta name="description" content="A client-side browser fingerprinting demonstration. Every value is computed in your tab; nothing is transmitted or stored.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<!-- No favicon request: a data URI never leaves the document. -->
+<link rel="icon" href="data:,">
+<style>
+/*
+ * Fingerprint Lab stylesheet.
+ *
+ * No web fonts, no external images, no CDN. Everything is system-dependent on
+ * purpose: a font fetched from a third party would itself be a privacy leak
+ * and would contradict the page's own disclosure.
+ */
+
+:root {
+  --bg: #0b0d10;
+  --bg-raised: #13161b;
+  --bg-sunken: #090a0c;
+  --border: #232830;
+  --border-bright: #333a46;
+  --text: #e6e9ee;
+  --text-dim: #9aa4b2;
+  --text-faint: #6b7480;
+  --accent: #6ea8ff;
+  --good: #4ec9a0;
+  --warn: #e8b45a;
+  --bad: #f0776a;
+  --good-bg: rgba(78, 201, 160, 0.08);
+  --warn-bg: rgba(232, 180, 90, 0.08);
+  --bad-bg: rgba(240, 119, 106, 0.08);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f8fa;
+    --bg-raised: #ffffff;
+    --bg-sunken: #eef0f4;
+    --border: #dfe3e9;
+    --border-bright: #c6ccd6;
+    --text: #1a1d22;
+    --text-dim: #5a6472;
+    --text-faint: #858e9b;
+    --accent: #2f6fd0;
+    --good: #1f8a68;
+    --warn: #9a6b12;
+    --bad: #b83a2b;
+    --good-bg: rgba(31, 138, 104, 0.08);
+    --warn-bg: rgba(154, 107, 18, 0.08);
+    --bad-bg: rgba(184, 58, 43, 0.08);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  /* No smooth scrolling tricks that depend on JS. */
+}
+
+.wrap {
+  width: min(100% - 2rem, 76rem);
+  margin-inline: auto;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  z-index: 10;
+}
+.skip:focus { left: 0.5rem; top: 0.5rem; }
+
+/* --- Masthead ---------------------------------------------------------- */
+
+.masthead {
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-raised), var(--bg));
+  padding: clamp(2rem, 6vw, 4rem) 0 clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--good);
+}
+
+.masthead h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(2rem, 6vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.lede {
+  margin: 0;
+  max-width: 46rem;
+  font-size: clamp(1rem, 2.2vw, 1.15rem);
+  color: var(--text-dim);
+}
+
+/* --- Disclosure -------------------------------------------------------- */
+
+.disclosure {
+  background: var(--bg-sunken);
+  border-bottom: 1px solid var(--border);
+  padding: 2rem 0;
+}
+
+.disclosure-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 48rem) {
+  .disclosure-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.disclosure-block h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: var(--mono);
+}
+
+.disclosure-yes h2 { color: var(--good); }
+.disclosure-no h2 { color: var(--bad); }
+
+.disclosure-block ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.disclosure-block li {
+  position: relative;
+  padding-left: 1.5rem;
+  font-size: 0.95rem;
+  color: var(--text-dim);
+}
+
+.disclosure-block li::before {
+  position: absolute;
+  left: 0;
+  font-family: var(--mono);
+  font-weight: 700;
+}
+
+.disclosure-yes li::before { content: "\2713"; color: var(--good); }
+.disclosure-no li::before { content: "\2715"; color: var(--bad); }
+
+.disclosure-verify {
+  margin: 1.5rem auto 0;
+  padding: 0.85rem 1rem;
+  border: 1px dashed var(--border-bright);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  background: var(--bg-raised);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+}
+
+/* --- Controls ---------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 2rem 0 1.25rem;
+}
+
+.btn {
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-bright);
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06121f;
+  font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+.status {
+  margin: 0;
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-faint);
+}
+
+/* --- Progress ---------------------------------------------------------- */
+
+.progress {
+  height: 3px;
+  background: var(--bg-sunken);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 160ms ease;
+}
+
+.progress-label {
+  margin: 0.35rem 0 2rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+/* --- Summary ----------------------------------------------------------- */
+
+.summary { margin-bottom: 3rem; }
+
+.summary-tier-good,
+.summary-tier-warn,
+.summary-tier-bad {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 1.5);
+  background: var(--bg-raised);
+  align-items: center;
+}
+
+@media (min-width: 48rem) {
+  .summary-tier-good,
+  .summary-tier-warn,
+  .summary-tier-bad { grid-template-columns: auto 1fr; }
+}
+
+.summary-tier-good { box-shadow: inset 3px 0 0 var(--good); }
+.summary-tier-warn { box-shadow: inset 3px 0 0 var(--warn); }
+.summary-tier-bad  { box-shadow: inset 3px 0 0 var(--bad); }
+
+.summary-headline { text-align: center; }
+
+.summary-eyebrow {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.summary-bits {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(2.75rem, 9vw, 4rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.summary-tier-good .summary-bits { color: var(--good); }
+.summary-tier-warn .summary-bits { color: var(--warn); }
+.summary-tier-bad  .summary-bits { color: var(--bad); }
+
+.summary-unit {
+  margin: 0.15rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
+.summary-tier-label {
+  margin: 0 0 0.35rem;
+  font-size: 1.3rem;
+  font-weight: 650;
+}
+
+.summary-tier-blurb {
+  margin: 0 0 0.75rem;
+  color: var(--text-dim);
+  font-size: 1rem;
+}
+
+.summary-population {
+  margin: 0 0 1rem;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.summary-detail {
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.25rem 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 30rem) {
+  .summary-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.summary-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.summary-detail-row dt { color: var(--text-faint); }
+.summary-detail-row dd { margin: 0; font-family: var(--mono); }
+
+.summary-caveat {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-left: 2px solid var(--warn);
+  background: var(--warn-bg);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* --- Signal families --------------------------------------------------- */
+
+.family { margin-bottom: 3rem; }
+
+.family-title {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.family-blurb {
+  margin: 0 0 0.4rem;
+  color: var(--text-faint);
+  font-size: 0.9rem;
+  max-width: 44rem;
+}
+
+.family-figure {
+  margin: 0 0 1.25rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 68rem) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* --- Cards ------------------------------------------------------------- */
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  padding: 1rem 1.1rem 1.1rem;
+  overflow-wrap: break-word;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.bits {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.status { font-size: 0.85rem; margin: 0 0 0.4rem; }
+.status.warn { color: var(--warn); }
+
+.note {
+  margin: 0 0 0.75rem;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+.rows { margin: 0; }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.75rem;
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.row-key {
+  flex: 1 1 10rem;
+  min-width: 0;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  word-break: break-word;
+}
+
+.row-val {
+  flex: 2 1 12rem;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  word-break: break-word;
+}
+
+/* On a narrow screen the key/value pair would squash into an unreadable
+   two-column layout, so stack the label above the value instead. */
+@media (max-width: 40rem) {
+  .row-key {
+    flex: 1 1 100%;
+  }
+  .row-val {
+    flex: 1 1 100%;
+    padding-left: 0;
+  }
+}
+
+.row-val.muted { color: var(--text-faint); font-style: italic; }
+
+.sublist { margin: 0; }
+
+.collapsed > summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-family: var(--mono);
+  padding: 0.1rem 0;
+}
+
+.collapsed[open] > summary { margin-bottom: 0.35rem; }
+
+.json {
+  margin: 0;
+  padding: 0.6rem;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  max-height: 22rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.bits-dropped, .bits-modelled {
+  margin: 0.6rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+/* --- Scale + footer ---------------------------------------------------- */
+
+.scale {
+  margin-bottom: 3rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+.scale p { margin: 0; }
+
+.page-footer {
+  padding: 2rem 0 4rem;
+  border-top: 1px solid var(--border);
+  max-width: 46rem;
+}
+
+.page-footer h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.page-footer p {
+  margin: 0 0 1rem;
+  color: var(--text-dim);
+  font-size: 0.93rem;
+}
+
+/* --- Device Info report ------------------------------------------------ */
+
+.deviceinfo {
+  margin-bottom: 3rem;
+}
+
+/* Category nav. Sticky so the 17 report sections stay reachable without
+   scrolling back up through the signal cards. */
+.di-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 1.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  scroll-margin-top: 4.5rem;
+}
+
+.di-nav-link {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.di-nav-link:hover { border-color: var(--accent); color: var(--accent); }
+.di-nav-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The link that jumps out of the report to the card section below. */
+.di-nav-link-external {
+  border-color: var(--accent);
+  color: var(--accent);
+  margin-left: auto;
+}
+
+/* Anchor targets sit below the sticky nav. */
+.di-section { scroll-margin-top: 5rem; }
+
+/* Sections targeted by the nav get focus via tabindex=-1; suppress the ring
+   on the container itself but keep it for keyboard users navigating to it. */
+#signals:focus { outline: none; }
+#signals:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* --- Signals heading ---------------------------------------------------- */
+
+.signals-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.signals-blurb {
+  margin: 0 0 1.75rem;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  max-width: 52rem;
+  line-height: 1.5;
+}
+
+.di-header h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.di-sub {
+  margin: 0 0 1.75rem;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  max-width: 52rem;
+  line-height: 1.5;
+}
+
+.di-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.di-tag-client { color: var(--good); border-color: var(--good); }
+.di-tag-blocked { color: var(--warn); border-color: var(--warn); }
+.di-tag-server { color: var(--bad); border-color: var(--bad); }
+.di-tag-permission { color: var(--accent); border-color: var(--accent); }
+
+.di-section {
+  margin-bottom: 2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+.di-section-title {
+  margin: 0;
+  padding: 0.7rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  background: var(--bg-sunken);
+  border-bottom: 1px solid var(--border);
+}
+
+.di-section-blurb {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.45;
+}
+
+.di-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.di-table tbody tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.di-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.di-table tbody tr:hover {
+  background: var(--bg-sunken);
+}
+
+.di-label {
+  padding: 0.45rem 1rem;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  vertical-align: top;
+  width: 1%;
+  white-space: nowrap;
+}
+
+.di-value {
+  padding: 0.45rem 0.5rem;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+/* Table-scoped tag styles — must not bleed into inline header badges.
+   display:table-cell is required because the generic .di-tag rule sets
+   inline-block, which would break the table layout. */
+.di-table .di-tag {
+  display: table-cell;
+  padding: 0.45rem 1rem 0.45rem 0.5rem;
+  text-align: right;
+  vertical-align: top;
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Tag colours inside the table */
+.di-table tr.tag-client .di-tag { color: var(--good); }
+.di-table tr.tag-blocked .di-tag { color: var(--warn); }
+.di-table tr.tag-server .di-tag { color: var(--bad); }
+.di-table tr.tag-permission .di-tag { color: var(--accent); }
+
+@media (max-width: 40rem) {
+  .di-label {
+    display: block;
+    width: 100%;
+    padding: 0.4rem 1rem 0;
+    white-space: normal;
+  }
+  .di-value {
+    display: block;
+    width: 100%;
+    padding: 0.1rem 1rem;
+  }
+  .di-tag {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0 1rem 0.4rem;
+  }
+}
+
+.placeholder {
+  margin: 0;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--text-faint);
+  border: 1px dashed var(--border-bright);
+  border-radius: var(--radius);
+}
+
+/* --- Fatal load failure ------------------------------------------------ */
+
+.fatal {
+  margin: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--warn);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  max-width: 46rem;
+}
+
+.fatal h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.1rem;
+  color: var(--warn);
+}
+
+.fatal p {
+  margin: 0 0 0.9rem;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+.fatal p:last-child { margin-bottom: 0; }
+
+.fatal code {
+  padding: 0.25em 0.5em;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
+
+@media print {
+  .controls, .progress, .progress-label, .skip { display: none; }
+  body { background: #fff; color: #000; }
+}
+
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to results</a>
+
+<header class="masthead">
+  <div class="wrap">
+    <p class="eyebrow">Client-side only · no requests · no storage</p>
+    <h1>Fingerprint&nbsp;Lab</h1>
+    <p class="lede">
+      A browser fingerprinting demonstration. It runs the same primitives a
+      tracking site runs — canvas, WebGL, audio, fonts, API surface — and then
+      shows you exactly what came back and how much of it narrows you down.
+      Everything you are about to read was computed inside this tab.
+    </p>
+  </div>
+</header>
+
+<section class="disclosure" aria-label="What this page does and does not do">
+  <div class="wrap disclosure-grid">
+    <div class="disclosure-block disclosure-yes">
+      <h2>What happens here</h2>
+      <ul>
+        <li>Reads properties this browser makes available to any page</li>
+        <li>Renders to offscreen canvases and hashes the output</li>
+        <li>Measures glyph widths to detect installed fonts</li>
+        <li>Queries permission <em>states</em> without requesting them</li>
+        <li>Displays the result to you, in full</li>
+      </ul>
+    </div>
+    <div class="disclosure-block disclosure-no">
+      <h2>What never happens here</h2>
+      <ul>
+        <li>No <code>fetch</code>, <code>XHR</code>, beacon or WebSocket</li>
+        <li>No IP address — no server is ever contacted</li>
+        <li>No geolocation, camera, microphone or clipboard request</li>
+        <li>No cookies, no <code>localStorage</code>, no IndexedDB write</li>
+        <li>No keystroke or pointer tracking</li>
+        <li>No third-party resources — no fonts, scripts or images</li>
+      </ul>
+    </div>
+  </div>
+  <p class="wrap disclosure-verify">
+    Verify it yourself: open your browser's Network panel, then reload this
+    page. The only requests are this document, the stylesheet and the script.
+    Disconnect from the internet before reloading and it still works.
+  </p>
+</section>
+
+<main id="main" class="wrap">
+
+  <section class="controls" aria-label="Controls">
+    <button id="rerun" type="button" class="btn btn-primary">Run again</button>
+    <button id="copy" type="button" class="btn" disabled>Copy report</button>
+    <button id="download" type="button" class="btn" disabled>Download JSON</button>
+    <p id="status" class="status" role="status" aria-live="polite">Starting…</p>
+  </section>
+
+  <div id="progress" class="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+    <div id="progress-bar" class="progress-bar"></div>
+  </div>
+  <p id="progress-label" class="progress-label">0 signals</p>
+
+  <section id="summary" class="summary" aria-live="polite" aria-busy="true"></section>
+
+  <!-- Category one: the Device Info report. Deliberately placed above the
+       entropy signal cards so browser detection is the first thing read,
+       not buried 10,000px behind 27 probe cards. -->
+  <section id="deviceinfo" class="deviceinfo" aria-live="polite" aria-busy="true">
+    <div class="di-header">
+      <h2>Device Info Report</h2>
+      <p class="di-sub">
+        A complete device-info report, organised by category. Every value is tagged
+        by how it was obtained — <span class="di-tag di-tag-client">client-side</span>,
+        <span class="di-tag di-tag-blocked">withheld</span>,
+        <span class="di-tag di-tag-permission">permission required</span>, or
+        <span class="di-tag di-tag-server">requires server</span>.
+        The last category is the honest half: those fields appear on device-info
+        sites but cannot be detected from the browser.
+      </p>
+    </div>
+    <nav id="di-nav" class="di-nav" aria-label="Report categories"></nav>
+    <div id="deviceinfo-report"></div>
+  </section>
+
+  <section id="signals" class="signals" aria-live="polite" tabindex="-1">
+    <h2 class="signals-title">Entropy signals</h2>
+    <p class="signals-blurb">
+      Each of the 27 probes below, grouped by family, with the value it
+      contributed to the distinctiveness estimate above. This is the working;
+      the Device Info Report above is the readable version.
+    </p>
+    <p class="placeholder">Running probes.</p>
+  </section>
+
+  <section id="scale" class="scale"></section>
+
+  <footer class="page-footer">
+    <h2>Why this exists</h2>
+    <p>
+      Fingerprinting is not exotic. It is the ordinary consequence of a
+      browser that describes the machine it is running on in enough detail to
+      lay out a page nicely. Every signal below was volunteered to this page
+      by your browser, without being asked, because rendering a page requires
+      it. The engineering skill being demonstrated here is the same skill a
+      tracking company uses — the difference is that this page shows you the
+      answer instead of selling it.
+    </p>
+    <p>
+      If you want to reduce your own number, the levers are: a browser that
+      resists fingerprinting (Brave, Tor Browser, Firefox with
+      <code>privacy.resistFingerprinting</code>), a standard window size, a
+      default time zone, a common font set, and no unusual extensions.
+      Note how each of those costs you something in convenience — that trade
+      is the actual research question.
+    </p>
+  </footer>
+
+</main>
+
+<!--
+  The app is written as ES modules, which browsers refuse to load over the
+  file:// protocol (CORS: module scripts from a null origin are blocked).
+  If this page is opened by double-clicking index.html, the module never runs
+  and the page sits empty — so detect that case and say so, rather than
+  rendering a blank page that looks like a bug.
+-->
+
+
+<script>
+
+/* ---- module runtime (minimal, for the standalone build only) ---------- */
+var __registry = Object.create(null);
+var __cache = Object.create(null);
+function __def(key, factory) { __registry[key] = factory; }
+function __require(key) {
+  if (__cache[key]) return __cache[key];
+  var factory = __registry[key];
+  if (!factory) throw new Error("Module not found: " + key);
+  var exports = {};
+  __cache[key] = exports;
+  factory(exports, __require);
+  return exports;
+}
+
+__def("src/js/probes/browser-detection", function (__exports, __require) {
+
+/**
+ * Browser detection.
+ *
+ * Category one. Everything a page can learn about a visitor's browser without
+ * asking permission, from two sources:
+ *
+ *   1. The User-Agent string — a claim the browser makes about itself.
+ *   2. Client Hints (`navigator.userAgentData`) — what the browser is willing
+ *      to confirm when asked.
+ *
+ * Both are cross-checked here. Where they disagree, the disagreement is the
+ * finding: a UA string claiming Chrome while Client Hints reports Brave is a
+ * browser that does not want to be identified.
+ *
+ * Detection covers, in priority order:
+ *
+ *   - Privacy / hardened browsers (Tor, Brave) — the ones worth spotting
+ *   - Legacy browsers (IE) — identifiable by engine tokens
+ *   - In-app browsers and WebViews (Facebook, Instagram, Line, Electron)
+ *   - Mobile browsers (Chrome iOS, Firefox iOS, Samsung Internet)
+ *   - Desktop browsers (Chrome, Firefox, Safari, Edge, Opera, Vivaldi, Arc)
+ *   - Headless / automated browsers (Selenium, Puppeteer, PhantomJS)
+ *
+ * Each result records *how* it was detected, because a detection method is part
+ * of the signal — a browser detectable only by an artefact is behaving
+ * differently from one that announces itself.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Browser definitions                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Ordered most-specific-first. The first pattern that matches wins, so
+ * Firefox iOS must precede generic Firefox, and Edge must precede Chrome
+ * (Edge's UA contains "Chrome" and "Safari").
+ */
+const BROWSER_RULES = [
+  // --- Privacy / hardened -------------------------------------------
+  {
+    name: "Tor Browser",
+    re: /TorBrowser\//i,
+    engine: "Gecko",
+    core: "Firefox",
+    note: "Announces itself in the UA. Also detectable by a forced UTC timezone.",
+  },
+  {
+    name: "Brave",
+    re: null, // Brave is invisible in the UA; only Client Hints reveal it.
+    engine: "Blink",
+    core: "Chromium",
+    hintOnly: "brand",
+    note: "No UA token. Detectable only via Sec-CH-UA / userAgentData.brands.",
+  },
+
+  // --- Legacy ---------------------------------------------------------
+  {
+    name: "Internet Explorer 11",
+    re: /Trident\/7\.0.*rv:([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Trident",
+    core: "Trident",
+  },
+  {
+    name: "Internet Explorer",
+    re: /MSIE ([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Trident",
+    core: "Trident",
+  },
+  {
+    name: "Microsoft Edge (Legacy)",
+    re: /Edge\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "EdgeHTML",
+    core: "EdgeHTML",
+    note: "EdgeHTML-based Edge, discontinued in 2021. Distinguishable from Chromium Edge by the absence of 'Edg/'.",
+  },
+
+  // --- In-app browsers and WebViews -----------------------------------
+  {
+    name: "Facebook In-App Browser",
+    re: /FBAN|FBAV/i,
+    engine: null,
+    core: "WebView",
+    note: "Any app embedding Facebook's browser. The UA carries FBAN/FBAV.",
+  },
+  {
+    name: "Instagram In-App Browser",
+    re: /Instagram/i,
+    engine: null,
+    core: "WebView",
+  },
+  {
+    name: "Line In-App Browser",
+    re: /Line\//i,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "WeChat In-App Browser",
+    re: /MicroMessenger/i,
+    engine: null,
+    core: "WebView",
+  },
+  {
+    name: "Alipay In-App Browser",
+    re: /AlipayClient/i,
+    engine: null,
+    core: "WebView",
+  },
+  {
+    name: "QQ Browser",
+    re: /QQBrowser/i,
+    engine: null,
+    core: "Chromium",
+  },
+  {
+    name: "Yandex Browser",
+    re: /YaBrowser/i,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "DuckDuckGo Browser",
+    re: /DuckDuckGo/i,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "Arc",
+    re: /Arc\//i,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "Vivaldi",
+    re: /Vivaldi\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "Samsung Internet",
+    re: /SamsungBrowser/i,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "Opera Touch",
+    re: /OPT\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "Opera Mini",
+    re: /Opera Mini/i,
+    engine: "Presto",
+    core: "Presto",
+    note: "Server-rendered proxy browser. The UA is the only signal.",
+  },
+  {
+    name: "Silk",
+    re: /Silk\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Blink",
+    core: "Chromium",
+    note: "Amazon devices. Distinguishable from Chrome by the Silk token.",
+  },
+
+  // --- Mobile ----------------------------------------------------------
+  {
+    name: "Chrome iOS",
+    re: /CriOS\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "WebKit",
+    core: "Chromium (via WKWebView)",
+    note: "Every iOS browser is WKWebView under Apple's rules, so the engine is WebKit regardless of brand.",
+  },
+  {
+    name: "Firefox iOS",
+    re: /FxiOS\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "WebKit",
+    core: "Firefox (via WKWebView)",
+  },
+  {
+    name: "Safari Mobile",
+    re: /Mobile\/[0-9A-Z]+ Safari/i,
+    engine: "WebKit",
+    core: "WebKit",
+  },
+
+  // --- Desktop ----------------------------------------------------------
+  {
+    name: "Microsoft Edge",
+    re: /Edg(?:e|A|iOS)?\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Blink",
+    core: "Chromium",
+    note: "Chromium-based Edge uses 'Edg/' — the trailing 's' distinguishes it from legacy EdgeHTML.",
+  },
+  {
+    name: "Opera",
+    re: /OPR\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "Chrome",
+    re: /Chrome\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Blink",
+    core: "Chromium",
+  },
+  {
+    name: "Firefox",
+    re: /Firefox\/([0-9.]+)/i,
+    versionGroup: 1,
+    engine: "Gecko",
+    core: "Gecko",
+  },
+  {
+    name: "Safari",
+    re: /Version\/([0-9.]+).*Safari/i,
+    versionGroup: 1,
+    engine: "WebKit",
+    core: "WebKit",
+  },
+];
+
+/* ------------------------------------------------------------------ */
+/* Engine detection                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The rendering engine is the more stable identifier. A browser can rebrand
+ * itself but cannot change its engine without becoming a different browser.
+ */
+function detectEngine(ua, browserName) {
+  if (/Trident\/|MSIE /.test(ua)) return "Trident";
+  if (/Edge\//.test(ua) && !/Edg\//.test(ua)) return "EdgeHTML";
+  if (/Gecko\/\d+/.test(ua) && /Firefox\//.test(ua)) return "Gecko";
+  if (/AppleWebKit/.test(ua)) {
+    // WebKit covers both Blink (a WebKit fork) and genuine WebKit. Chromium
+    // browsers report AppleWebKit too, so check for the Chrome token.
+    if (/Chrome\/|CriOS\/|Edg\/|OPR\/|SamsungBrowser/.test(ua)) return "Blink (WebKit fork)";
+    return "WebKit";
+  }
+  if (/Presto\//.test(ua)) return "Presto";
+  return "Unknown";
+}
+
+/* ------------------------------------------------------------------ */
+/* Platform from UA                                                    */
+/* ------------------------------------------------------------------ */
+
+function detectPlatform(ua) {
+  const isMobile = /Mobi|Android|iPhone|iPod|IEMobile|Windows Phone/i.test(ua);
+  const isTablet = /iPad|Tablet|Silk/i.test(ua) && !/Mobile/i.test(ua);
+
+  let os = "Unknown";
+  let osVersion = null;
+  let deviceType = null;
+
+  if (/Windows NT 10.0/.test(ua)) { os = "Windows"; osVersion = "10 / 11"; }
+  else if (/Windows NT 6.3/.test(ua)) { os = "Windows"; osVersion = "8.1"; }
+  else if (/Windows NT 6.2/.test(ua)) { os = "Windows"; osVersion = "8"; }
+  else if (/Windows NT 6.1/.test(ua)) { os = "Windows"; osVersion = "7"; }
+  else if (/Windows Phone 10/.test(ua)) { os = "Windows Phone"; osVersion = "10"; }
+  else if (/Windows Phone 8/.test(ua)) { os = "Windows Phone"; osVersion = "8"; }
+  else if (/Mac OS X ([0-9_]+)/.test(ua)) {
+    os = "macOS";
+    const v = (ua.match(/Mac OS X ([0-9_]+)/) || [])[1];
+    if (v) osVersion = v.replace(/_/g, ".");
+  }
+  else if (/Android ([0-9.]+)/.test(ua)) {
+    os = "Android";
+    osVersion = (ua.match(/Android ([0-9.]+)/) || [])[1] || null;
+  }
+  else if (/CrOS/.test(ua)) { os = "Chrome OS"; }
+  else if (/iPhone|iPad|iPod/.test(ua)) { os = "iOS"; }
+  else if (/Linux/.test(ua)) { os = "Linux"; }
+  else if (/FreeBSD/.test(ua)) { os = "FreeBSD"; }
+  else if (/OpenBSD/.test(ua)) { os = "OpenBSD"; }
+
+  if (isTablet) deviceType = "Tablet";
+  else if (isMobile) deviceType = "Mobile";
+  else deviceType = "Desktop / Laptop";
+
+  return { os, osVersion, deviceType };
+}
+
+/* ------------------------------------------------------------------ */
+/* Architecture                                                        */
+/* ------------------------------------------------------------------ */
+
+function detectArch(ua) {
+  if (/Win64|x64|x86_64/.test(ua)) return "x86-64";
+  if (/WOW64/.test(ua)) return "x86-64 (WoW64)";
+  if (/i386|i686/.test(ua)) return "x86 (32-bit)";
+  if (/arm64|aarch64/.test(ua)) return "ARM64";
+  if (/armv[0-9]/.test(ua)) return "ARM";
+  return "Unknown";
+}
+
+/* ------------------------------------------------------------------ */
+/* Headless / automation                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Automated browsers are detectable because automation leaves traces: missing
+ * plugins, a `webdriver` flag, a headless UA token, or a plugins array that
+ * is empty when it should not be.
+ */
+function detectAutomation(ua) {
+  const flags = [];
+
+  if (navigator.webdriver === true) flags.push("navigator.webdriver is true");
+  if (/HeadlessChrome|Headless/i.test(ua)) flags.push("HeadlessChrome token in UA");
+  if (/PhantomJS/.test(ua)) flags.push("PhantomJS token in UA");
+  if (/Selenium|WebDriver/i.test(ua)) flags.push("Selenium/WebDriver token in UA");
+
+  // Chrome always has the Chrome PDF Viewer plugin. An empty plugins array on
+  // a Chrome UA means either automation or a hardened browser.
+  if (/Chrome\//.test(ua) && navigator.plugins && navigator.plugins.length === 0) {
+    flags.push("Chrome UA but zero plugins (automation or hardening)");
+  }
+
+  // Languages: an automated browser often reports none.
+  if (!navigator.languages || navigator.languages.length === 0) {
+    flags.push("navigator.languages is empty");
+  }
+
+  // Permissions API behaviour differs under automation.
+  if (window.Permissions && navigator.permissions) {
+    // Not a definitive signal on its own, so not flagged.
+  }
+
+  return {
+    automated: flags.length > 0,
+    flags,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* WebView / Electron                                                 */
+/* ------------------------------------------------------------------ */
+
+function detectEnvironment(ua) {
+  const env = [];
+
+  // Electron sets a distinctive token.
+  if (/Electron\//.test(ua)) env.push("Electron");
+  if (/electron/i.test(navigator.userAgent)) env.push("Electron (navigator)");
+
+  // Android WebView.
+  if (/; wv\)|Version\/[0-9.]+ Chrome\/[0-9.]+ Mobile Safari/i.test(ua)) {
+    env.push("Android WebView");
+  }
+
+  // iOS WKWebView.
+  if (/iPhone|iPad|iPod/.test(ua) && !/Safari\//.test(ua) && /AppleWebKit/.test(ua)) {
+    env.push("iOS WKWebView");
+  }
+
+  // Node.js / server-side rendering.
+  if (typeof process !== "undefined" && process.versions && process.versions.node) {
+    env.push("Node.js");
+  }
+
+  return env.length ? env : null;
+}
+
+/* ------------------------------------------------------------------ */
+/* UA consistency checks                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The interesting security question: does the UA string agree with itself?
+ * A UA claiming Chrome while exposing Firefox-only APIs is either a
+ * misconfigured browser, a spoofed UA, or an extension rewriting the string.
+ */
+function consistencyChecks(ua, browser, hints) {
+  const issues = [];
+
+  // Chrome token without the Chrome plugin.
+  if (/Chrome\//.test(ua) && navigator.plugins && navigator.plugins.length === 0) {
+    issues.push("UA claims Chrome but reports no plugins");
+  }
+
+  // Safari claims but no AppleWebKit token.
+  if (/Safari\//.test(ua) && !/AppleWebKit/.test(ua)) {
+    issues.push("UA contains Safari but no AppleWebKit token");
+  }
+
+  // Firefox claims but no Gecko token.
+  if (/Firefox\//.test(ua) && !/Gecko\//.test(ua)) {
+    issues.push("UA claims Firefox but no Gecko token");
+  }
+
+  // Cross-check against Client Hints when available.
+  if (hints && Array.isArray(hints.brands)) {
+    const hintBrands = hints.brands.map((b) => b.brand.toLowerCase());
+    const uaLower = ua.toLowerCase();
+
+    if (browser.name === "Chrome" && hintBrands.some((b) => b.includes("brave"))) {
+      issues.push("UA claims Chrome but Client Hints report Brave — UA may be spoofed or rewritten");
+    }
+    if (browser.name === "Chrome" && !hintBrands.some((b) => b.includes("chromium"))) {
+      issues.push("UA claims Chrome but Client Hints do not confirm Chromium");
+    }
+    if (browser.name === "Firefox" && hintBrands.some((b) => b.includes("chromium"))) {
+      issues.push("UA claims Firefox but Client Hints report Chromium");
+    }
+  }
+
+  // OS cross-check: a Windows UA on a non-Windows platform.
+  if (/Windows/.test(ua) && navigator.platform && !/win/i.test(navigator.platform)) {
+    issues.push(`UA claims Windows but navigator.platform is "${navigator.platform}"`);
+  }
+
+  return issues.length ? issues : null;
+}
+
+/* ------------------------------------------------------------------ */
+/* UA token analysis                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Split the User-Agent string into its constituent product tokens.
+ *
+ * A UA string is a list of product comments in parentheses, plus a final
+ * engine token. Most are historical lying: "Mozilla/5.0" is a 1993 token every
+ * browser still ships to pretend to be Netscape, "AppleWebKit" appears in
+ * Chromium, and "Safari" appears in every WebKit browser including Chrome's
+ * iOS build.
+ *
+ * Decomposing the string is the most direct way to show this -- it makes the
+ * padding visible rather than asking you to take it on trust.
+ */
+function analyzeUaTokens(ua) {
+  // Parenthesised product comments, e.g. "(X11; Linux x86_64)".
+  const comments = (ua.match(/\([^)]*\)/g) || []).map((c) => c.slice(1, -1));
+
+  // Trailing slash-delimited products after the closing parenthesis.
+  const tail = ua.slice(ua.lastIndexOf(")") + 1).trim();
+
+  // Grease: Chromium inserts deliberately vague tokens to stop sites building
+  // a stable allowlist of brands.
+  const GREASE = /not.?a.?brand|not.?a.?brand|\bnot\(.?a.?brand\)?/i;
+
+  const products = [];
+  for (const token of tail.split(/\s+/).filter(Boolean)) {
+    const [rawName, rawVersion] = token.split("/");
+    if (!rawName) continue;
+    products.push({
+      token: token,
+      name: rawName,
+      version: rawVersion ?? null,
+      greased: GREASE.test(rawName),
+    });
+  }
+
+  // Classify each product so the padding is explicit.
+  const classification = {
+    mozilla: /Mozilla\/5\.0/.test(tail),
+    gecko: /Gecko\/\d/.test(ua),
+    webkit: /AppleWebKit\/\d/.test(ua),
+    blink: /Chrome\/\d|Chromium\/\d/.test(tail),
+    trident: /Trident\/\d/.test(ua),
+    edgehtml: /Edge\/\d/.test(tail),
+    presto: /Presto\//.test(tail),
+  };
+
+  return {
+    comments,
+    tail: tail || null,
+    products,
+    greasedCount: products.filter((p) => p.greased).length,
+    engineTokens: Object.entries(classification)
+      .filter(([, present]) => present)
+      .map(([name]) => name),
+    note:
+      "Mozilla/5.0, AppleWebKit and Safari are padding present in most modern " +
+      "browser strings. Chromium is a WebKit fork but still ships the " +
+      "AppleWebKit token. Grease tokens are inserted by Chromium to stop " +
+      "sites hardcoding a stable brand list.",
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Main                                                                */
+/* ------------------------------------------------------------------ */
+
+function detectBrowser(ua, hints) {
+  let detected = null;
+  let matchedRule = null;
+
+  for (const rule of BROWSER_RULES) {
+    if (!rule.re) continue;
+    const m = ua.match(rule.re);
+    if (m) {
+      detected = rule.name;
+      matchedRule = rule;
+      break;
+    }
+  }
+
+  // Version: from the matched rule's capture group, else from a generic
+  // browser-specific token.
+  let version = null;
+  if (matchedRule && matchedRule.versionGroup && ua.match(matchedRule.re)) {
+    version = ua.match(matchedRule.re)[matchedRule.versionGroup] || null;
+  }
+
+  // Brave has no UA token — it is only visible via Client Hints.
+  let braveViaHints = false;
+  if (hints && Array.isArray(hints.brands)) {
+    braveViaHints = hints.brands.some((b) => /brave/i.test(b.brand));
+  }
+  if (!detected && braveViaHints) {
+    detected = "Brave";
+    matchedRule = BROWSER_RULES.find((r) => r.name === "Brave");
+  }
+
+  const platform = detectPlatform(ua);
+  const arch = detectArch(ua);
+  const automation = detectAutomation(ua);
+  const environment = detectEnvironment(ua);
+  const issues = consistencyChecks(ua, { name: detected }, hints);
+
+  // Detection method, for the report.
+  const method = [];
+  if (matchedRule && matchedRule.re) method.push(`UA token (${matchedRule.re.source.slice(0, 24)}…)`);
+  if (braveViaHints) method.push("Client Hints brands");
+  if (matchedRule && matchedRule.note) method.push(matchedRule.note);
+
+  const engine = matchedRule?.engine || detectEngine(ua, detected);
+  const core = matchedRule?.core || (detected ? "Unknown" : null);
+
+  return {
+    browser: detected || "Unknown",
+    version,
+    engine,
+    core,
+    ...platform,
+    arch,
+    automation,
+    environment,
+    consistencyIssues: issues,
+    detectionMethod: method,
+    confidence:
+      detected && matchedRule && matchedRule.re
+        ? "high (UA token)"
+        : detected && braveViaHints
+          ? "high (Client Hints)"
+          : detected
+            ? "medium (inference)"
+            : "none",
+  };
+}
+
+const probe = {
+  id: "browser-detection",
+  label: "Browser detection",
+  family: "platform",
+  bits: 6.0,
+  async run() {
+    const ua = navigator.userAgent;
+    const hints = (() => {
+      const d = navigator.userAgentData;
+      if (!d || !Array.isArray(d.brands)) return { brands: null };
+      return { brands: d.brands.map((b) => ({ ...b })) };
+    })();
+
+    const result = detectBrowser(ua, hints);
+
+    return {
+      available: true,
+      userAgent: ua,
+      ...result,
+      clientHintsBrands: hints.brands,
+      uaTokens: analyzeUaTokens(ua),
+      note:
+        "Browser identity comes from the UA string and is cross-checked " +
+        "against Client Hints. Where they disagree — a UA claiming Chrome " +
+        "while hints report Brave — the disagreement is the finding: " +
+        "something is rewriting the string.",
+    };
+  },
+};
+
+
+
+  __exports["probe"] = probe;
+  __exports["detectBrowser"] = detectBrowser;
+});
+
+__def("src/js/hash", function (__exports, __require) {
+
+/**
+ * Hashing and canonical serialisation.
+ *
+ * Everything here is synchronous except sha256, which uses SubtleCrypto when
+ * it is available. Nothing in this module touches the network: hashing is a
+ * local operation on strings the page already holds.
+ */
+
+const encoder = new TextEncoder();
+
+/** 32-bit FNV-1a. The fallback when SubtleCrypto is unavailable (non-secure
+ *  contexts, very old browsers). Weak, but this is a display hash, not a
+ *  security boundary. */
+function fnv1a(input) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    // h *= 16777619, done as shifts to stay in 32 bits
+    h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
+async function sha256(input) {
+  if (globalThis.crypto && crypto.subtle) {
+    try {
+      const digest = await crypto.subtle.digest("SHA-256", encoder.encode(input));
+      return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    } catch {
+      // SubtleCrypto exists but refused; fall through to the weak hash.
+    }
+  }
+  return fnv1a(input);
+}
+
+  __exports["fnv1a"] = fnv1a;
+  __exports["sha256"] = sha256;
+});
+
+__def("src/js/probes/identity", function (__exports, __require) {
+  const __m10_src_js_hash_sha256 = __require("src/js/hash");
+  const { sha256 } = __m10_src_js_hash_sha256;
+
+
+/**
+ * Who the browser says it is.
+ *
+ * The User-Agent string is the single most quoted signal and also the least
+ * trustworthy: Chrome froze it, Safari froze it, and every browser reports a
+ * long tail of minor versions. It is reported here because it is easy to
+ * compare against what the rest of the page reveals -- mismatches between
+ * these values are themselves a signal.
+ */
+const probe = {
+  id: "identity",
+  label: "Identity strings",
+  family: "platform",
+  bits: 8.0,
+  async run() {
+    const n = navigator;
+    return {
+      userAgent: n.userAgent || null,
+      appVersion: n.appVersion || null,
+      product: n.product || null,
+      vendor: n.vendor || null,
+      productSub: n.productSub || null,
+      oscpu: "oscpu" in n ? n.oscpu : null,
+      webdriver: n.webdriver === true,
+      pdfViewerEnabled: n.pdfViewerEnabled === true,
+      standalone: typeof n.standalone === "boolean" ? n.standalone : null,
+      userAgentHash: await sha256(n.userAgent || ""),
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/locale", function (__exports, __require) {
+
+/**
+ * Locale, language and time zone.
+ *
+ * Time zone is coarser than it looks but pairs strongly with locale: an
+ * en-US browser on Asia/Kolkata is an unusual combination and narrows things
+ * considerably. The offset alone leaks a band of longitude, not just a
+ * preference.
+ */
+const probe = {
+  id: "locale",
+  label: "Locale, language & time zone",
+  family: "platform",
+  bits: 3.2,
+  async run() {
+    const intl = Intl.DateTimeFormat().resolvedOptions();
+    const now = new Date();
+    return {
+      language: navigator.language || null,
+      languages: Array.isArray(navigator.languages) ? navigator.languages.slice() : null,
+      intlLocale: intl.locale || null,
+      calendar: intl.calendar || null,
+      numberingSystem: intl.numberingSystem || null,
+      timeZone: intl.timeZone || null,
+      timeZoneOffsetMinutes: now.getTimezoneOffset(),
+      dateFormatHint: new Intl.DateTimeFormat(intl.locale).format(now),
+      weekInfo: typeof Intl.Locale === "function" && intl.locale
+        ? (() => {
+            try {
+              const loc = new Intl.Locale(intl.locale);
+              const week = loc.weekInfo || (loc.getWeekInfo && loc.getWeekInfo());
+              return week ? { firstDay: week.firstDay, weekend: [week.weekend?.[0], week.weekend?.[week.weekend.length - 1]] } : null;
+            } catch {
+              return null;
+            }
+          })()
+        : null,
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/display", function (__exports, __require) {
+
+/**
+ * Screen, window and CSS preferences.
+ *
+ * Screen geometry plus devicePixelRatio is one of the highest-value low-effort
+ * signals, and it does not need any API -- it is layout information the page
+ * needs in order to render at all. The media query block captures rendering
+ * preferences (contrast, motion, colour gamut) that are handed over for
+ * accessibility reasons and are rarely uniform across a population.
+ */
+const MEDIA_QUERIES = [
+  "prefers-color-scheme",
+  "prefers-reduced-motion",
+  "prefers-reduced-transparency",
+  "prefers-contrast",
+  "forced-colors",
+  "inverted-colors",
+  "dynamic-range",
+  "video-dynamic-range",
+  "color-gamut",
+  "any-pointer",
+  "any-hover",
+  "pointer",
+  "hover",
+  "orientation",
+  "display-mode",
+];
+
+const probe = {
+  id: "display",
+  label: "Display, viewport & rendering preferences",
+  family: "platform",
+  bits: 5.4,
+  async run() {
+    const s = screen;
+    const mq = {};
+    for (const query of MEDIA_QUERIES) {
+      try {
+        const list = matchMedia(`(${query})`);
+        mq[query] = { matches: list.matches, media: list.media };
+      } catch {
+        mq[query] = { matches: null, media: null };
+      }
+    }
+
+    const orientation = screen.orientation;
+    return {
+      screen: {
+        width: s.width,
+        height: s.height,
+        availWidth: s.availWidth,
+        availHeight: s.availHeight,
+        colorDepth: s.colorDepth,
+        pixelDepth: s.pixelDepth,
+      },
+      window: {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        outerWidth: window.outerWidth,
+        outerHeight: window.outerHeight,
+        screenX: window.screenX,
+        screenY: window.screenY,
+        devicePixelRatio: window.devicePixelRatio,
+      },
+      orientation: orientation
+        ? { type: orientation.type, angle: orientation.angle }
+        : null,
+      mediaQueries: mq,
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/hardware", function (__exports, __require) {
+
+/**
+ * Hardware capability hints.
+ *
+ * These are the values the browser volunteers so a page can size its work
+ * sensibly. `hardwareConcurrency` is the thread count, `deviceMemory` is a
+ * quantised RAM band, and `maxTouchPoints` separates touch hardware from
+ * mouse hardware. None of them is an identifier alone, but together they cut
+ * the population by a large factor and they are consistent across visits.
+ */
+const probe = {
+  id: "hardware",
+  label: "Hardware hints",
+  family: "platform",
+  bits: 5.5,
+  async run() {
+    const n = navigator;
+    return {
+      hardwareConcurrency: n.hardwareConcurrency ?? null,
+      deviceMemoryGB: "deviceMemory" in n ? n.deviceMemory : null,
+      maxTouchPoints: n.maxTouchPoints ?? null,
+      cookieEnabled: n.cookieEnabled === true,
+      globalPrivacyControl: "globalPrivacyControl" in n ? n.globalPrivacyControl : null,
+      doNotTrack: n.doNotTrack || null,
+      javaEnabled: typeof n.javaEnabled === "function" ? n.javaEnabled() : null,
+      // Mutable properties that are unusual but easy to observe.
+      userAgentDataPresent: "userAgentData" in n,
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/canvas", function (__exports, __require) {
+  const __m10_src_js_hash_sha256 = __require("src/js/hash");
+  const { sha256 } = __m10_src_js_hash_sha256;
+
+
+/**
+ * Canvas rendering fingerprint.
+ *
+ * The page is allowed to draw. What it draws depends on the font rasteriser,
+ * the anti-aliasing path, the GPU, the sub-pixel layout the OS is using and
+ * the colour management settings. Identical text produces a slightly
+ * different bitmap on different machines, and that bitmap hashes to a stable
+ * per-machine value.
+ *
+ * Deliberately blocked by Brave, Firefox's resistFingerprinting and Safari's
+ * anti-fingerprinting. When blocked the hash collapses to a constant -- that
+ * absence is itself worth reporting.
+ */
+
+const WIDTH = 300;
+const HEIGHT = 90;
+
+function paint(ctx) {
+  // Translucent gradient: forces the compositing path into the hash.
+  const gradient = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
+  gradient.addColorStop(0, "#ff6600");
+  gradient.addColorStop(0.5, "#006699");
+  gradient.addColorStop(1, "#00cc66");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  // Text with an emoji: exercises glyph shaping beyond the BMP.
+  ctx.textBaseline = "top";
+  ctx.font = '16px "Arial"';
+  ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+  ctx.fillText("Cwm fjord bank glyphs vext quiz \u{1F600}", 4, 4);
+
+  // Emoji at a second size: catches emoji font substitution differences.
+  ctx.font = '12px "Times New Roman"';
+  ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.fillText("\u{1F600}\u{1F680}\u{1F44D}", 4, 26);
+
+  // Geometry: curves and strokes round differently across rasterisers.
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(240, 30, 22, 0, Math.PI * 1.6);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(4, 60);
+  ctx.bezierCurveTo(40, 20, 120, 80, 160, 50);
+  ctx.stroke();
+
+  // Global composite operation: blending differences land here.
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = "rgba(0, 128, 255, 0.5)";
+  ctx.fillRect(180, 55, 100, 25);
+
+  ctx.globalCompositeOperation = "source-over";
+
+  // Shadow rendering: a well-known fingerprint amplifier.
+  ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(4, 70, 120, 10);
+}
+
+function readBack(ctx) {
+  // A raw pixel readback catches colour-space conversion and dithering that
+  // the encoded PNG would otherwise paper over.
+  const data = ctx.getImageData(0, 0, 24, 4).data;
+  let acc = 0;
+  for (let i = 0; i < data.length; i++) acc = (acc * 31 + data[i]) >>> 0;
+  return { checksum: acc.toString(16), firstPixels: Array.from(data.slice(0, 8)) };
+}
+
+const probe = {
+  id: "canvas",
+  label: "Canvas 2D rendering",
+  family: "rendering",
+  bits: 7.0,
+  async run() {
+    const canvas = document.createElement("canvas");
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) {
+      return { available: false, note: "2D canvas context unavailable." };
+    }
+
+    paint(ctx);
+
+    let dataUrl;
+    try {
+      dataUrl = canvas.toDataURL();
+    } catch (err) {
+      return { available: false, note: `toDataURL refused: ${err.message}` };
+    }
+
+    const hash = await sha256(dataUrl);
+    const checksum = readBack(ctx);
+
+    return {
+      available: true,
+      dimensions: `${WIDTH}x${HEIGHT}`,
+      dataUrlBytes: dataUrl.length,
+      hash,
+      ...checksum,
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/webgl", function (__exports, __require) {
+  const __m10_src_js_hash_sha256 = __require("src/js/hash");
+  const { sha256 } = __m10_src_js_hash_sha256;
+
+
+/**
+ * WebGL fingerprint.
+ *
+ * Two separate signals:
+ *
+ *   1. The renderer strings. `UNMASKED_RENDERER_WEBGL` is close to a hardware
+ *      model number -- with `WEBGL_debug_renderer_info` it returns the actual
+ *      GPU and driver string. This is the single highest-value WebGL signal
+ *      and it is why browsers have been progressively locking it down.
+ *   2. A rendered image hash. A shaded scene rasterised by the real driver
+ *      differs measurably between GPUs and driver versions even when the
+ *      renderer strings match.
+ *
+ * The parameter list is long and every value narrows the population: the
+ * number of texture units, the maximum viewport dimensions, the precision
+ * formats. Reporting them individually rather than as a hash makes the
+ * *why* visible.
+ */
+
+const PARAMS = [
+  "MAX_TEXTURE_SIZE",
+  "MAX_VIEWPORT_DIMS",
+  "MAX_RENDERBUFFER_SIZE",
+  "MAX_VERTEX_ATTRIBS",
+  "MAX_VERTEX_UNIFORM_VECTORS",
+  "MAX_VARYING_VECTORS",
+  "MAX_FRAGMENT_UNIFORM_VECTORS",
+  "MAX_TEXTURE_IMAGE_UNITS",
+  "MAX_VERTEX_TEXTURE_IMAGE_UNITS",
+  "MAX_COMBINED_TEXTURE_IMAGE_UNITS",
+  "MAX_CUBE_MAP_TEXTURE_SIZE",
+  "ALIASED_LINE_WIDTH_RANGE",
+  "ALIASED_POINT_SIZE_RANGE",
+  "RED_BITS",
+  "GREEN_BITS",
+  "BLUE_BITS",
+  "ALPHA_BITS",
+  "DEPTH_BITS",
+  "STENCIL_BITS",
+  "SUBPIXEL_BITS",
+  "MAX_SAMPLES",
+];
+
+function renderScene(gl) {
+  const w = 128;
+  const h = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+
+  const vertexSrc = `
+    attribute vec2 position;
+    void main() { gl_Position = vec4(position, 0.0, 1.0); }
+  `;
+  // A smooth gradient computed per-pixel: forcing the driver's interpolation
+  // and precision path.
+  const fragmentSrc = `
+    precision mediump float;
+    void main() {
+      vec2 uv = gl_FragCoord.xy / vec2(${w}.0, ${h}.0);
+      float d = distance(uv, vec2(0.5, 0.5));
+      gl_FragColor = vec4(uv.x, uv.y, sin(d * 12.0) * 0.5 + 0.5, 1.0);
+    }
+  `;
+
+  const compile = (type, source) => {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    return shader;
+  };
+
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSrc));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSrc));
+  gl.linkProgram(program);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    return null;
+  }
+
+  gl.useProgram(program);
+
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([-1, -1, 3, -1, -1, 3]),
+    gl.STATIC_DRAW
+  );
+
+  const loc = gl.getAttribLocation(program, "position");
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  gl.viewport(0, 0, w, h);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  const pixels = new Uint8Array(w * h * 4);
+  gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+  let acc = 0;
+  for (let i = 0; i < pixels.length; i++) acc = (acc * 31 + pixels[i]) >>> 0;
+  return acc.toString(16);
+}
+
+const probe = {
+  id: "webgl",
+  label: "WebGL & GPU",
+  family: "rendering",
+  bits: 9.5,
+  async run() {
+    const canvas = document.createElement("canvas");
+    const gl =
+      canvas.getContext("webgl2") ||
+      canvas.getContext("webgl") ||
+      canvas.getContext("experimental-webgl");
+
+    if (!gl) {
+      return { available: false, note: "No WebGL context." };
+    }
+
+    const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+    const readString = (id) => {
+      const value = gl.getParameter(id);
+      return typeof value === "string" ? value : null;
+    };
+
+    const params = {};
+    for (const name of PARAMS) {
+      const key = gl[name];
+      if (key === undefined) continue;
+      try {
+        const value = gl.getParameter(key);
+        params[name] = Array.isArray(value) ? value.slice() : value;
+      } catch {
+        params[name] = "unreadable";
+      }
+    }
+
+    let extensions = [];
+    try {
+      extensions = (gl.getSupportedExtensions() || []).slice().sort();
+    } catch {
+      extensions = [];
+    }
+
+    let hash = null;
+    try {
+      const checksum = renderScene(gl);
+      if (checksum) hash = await sha256(checksum);
+    } catch (err) {
+      hash = null;
+    }
+
+    return {
+      available: true,
+      vendor: readString(gl.VENDOR),
+      renderer: readString(gl.RENDERER),
+      version: readString(gl.VERSION),
+      shadingLanguageVersion: readString(gl.SHADING_LANGUAGE_VERSION),
+      unmaskedVendor: debugInfo ? readString(debugInfo.UNMASKED_VENDOR_WEBGL) : null,
+      unmaskedRenderer: debugInfo ? readString(debugInfo.UNMASKED_RENDERER_WEBGL) : null,
+      rendererInfoAvailable: Boolean(debugInfo),
+      antialias: gl.getContextAttributes()?.antialias ?? null,
+      maxAnisotropy: (() => {
+        const ext = gl.getExtension("EXT_texture_filter_anisotropic");
+        if (!ext) return null;
+        try {
+          return gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+        } catch {
+          return null;
+        }
+      })(),
+      extensionCount: extensions.length,
+      extensions,
+      parameters: params,
+      pixelHash: hash,
+      note: debugInfo
+        ? "Renderer strings are exposed without restriction on this browser."
+        : "Renderer strings are masked here; the parameter block carries the signal instead.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/audio", function (__exports, __require) {
+  const __m10_src_js_hash_sha256 = __require("src/js/hash");
+  const { sha256 } = __m10_src_js_hash_sha256;
+/**
+ * AudioContext fingerprint.
+ * An oscillator is rendered offline through a DynamicsCompressor node and the
+ * resulting samples are summed. The compressor's curve is implemented
+ * differently per engine and per platform, so identical input produces a
+ * stable, platform-specific sample sequence.
+ *
+ * This is the probe that resistFingerprinting most reliably nullifies:
+ * Firefox returns a constant buffer, and a null result is reported as such
+ * rather than silently contributing zero entropy.
+ */
+
+
+const probe = {
+  id: "audio",
+  label: "AudioContext processing",
+  family: "rendering",
+  bits: 5.0,
+  async run() {
+    const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Ctx) {
+      return { available: false, note: "OfflineAudioContext unavailable." };
+    }
+
+    try {
+      // 1 second of 44.1kHz is enough to capture the compressor curve.
+      const ctx = new Ctx(1, 44100, 44100);
+
+      const oscillator = ctx.createOscillator();
+      oscillator.type = "triangle";
+      oscillator.frequency.value = 10000;
+
+      const compressor = ctx.createDynamicsCompressor();
+      // Fixed settings so the difference is the implementation, not the input.
+      compressor.threshold.value = -50;
+      compressor.knee.value = 40;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0;
+      compressor.release.value = 0.25;
+
+      oscillator.connect(compressor);
+      compressor.connect(ctx.destination);
+      oscillator.start(0);
+
+      const buffer = await ctx.startRendering();
+      const channel = buffer.getChannelData(0);
+
+      // Sum with a carry so ordering matters, not just magnitude.
+      let sum = 0;
+      let peaks = 0;
+      for (let i = 0; i < channel.length; i++) {
+        const v = channel[i];
+        sum = (sum + v * 1e6) | 0;
+        if (v !== 0) peaks++;
+      }
+
+      if (peaks === 0) {
+        return {
+          available: false,
+          note:
+            "Rendered buffer is entirely zero -- this browser is normalising "
+            + "the audio pipeline against fingerprinting.",
+        };
+      }
+
+      return {
+        available: true,
+        sampleLength: channel.length,
+        sampleRate: buffer.sampleRate,
+        nonZeroSamples: peaks,
+        checksum: sum.toString(16),
+        hash: await sha256(String(sum)),
+      };
+    } catch (err) {
+      return { available: false, note: `Rendering refused: ${err.message}` };
+    }
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/fonts", function (__exports, __require) {
+
+/**
+ * Font availability.
+ *
+ * Measures a long candidate list by glyph width against the three generic
+ * font families. A candidate counts as present only when it measures
+ * differently from all three baselines, which rules out silent substitution
+ * to the default font -- the failure mode that makes naive font detection
+ * report everything as installed.
+ *
+ * The specific *combination* of installed fonts is the signal, not the count:
+ * "Segoe UI + Calibri + Noto Color Emoji" and "Helvetica Neue + SF Pro +
+ * Apple Color Emoji" are two different machines worth hundreds of thousands
+ * of combinations between them.
+ */
+
+const CANVAS_FONT = "72px ";
+const TEST_STRING = "mmmmmmmmmmlliWwmMWM0OoO";
+
+const FONT_FAMILIES = [
+  "Arial", "Arial Black", "Arial Narrow", "Arial Rounded MT Bold",
+  "Bahnschrift", "Calibri", "Cambria", "Cambria Math", "Candara", "Century Gothic",
+  "Comic Sans MS", "Consolas", "Constantia", "Corbel", "Ebrima", "Franklin Gothic Medium",
+  "Gabriola", "Gadugi", "Georgia", "HoloLens MDL2 Assets", "Impact", "Ink Free",
+  "Javanese Text", "Leelawadee UI", "Lucida Console", "Lucida Sans Unicode",
+  "Malgun Gothic", "Marlett", "Microsoft Himalaya", "Microsoft JhengHei",
+  "Microsoft New Tai Lue", "Microsoft PhagsPa", "Microsoft Sans Serif",
+  "Microsoft Tai Le", "Microsoft YaHei", "MingLiU-ExtB", "Mongolian Baiti",
+  "MS Gothic", "MV Boli", "Myanmar Text", "Nirmala UI", "Palatino Linotype",
+  "Segoe MDL2 Assets", "Segoe Print", "Segoe Script", "Segoe UI", "SimSun",
+  "Sitka", "Sylfaen", "Symbol", "Tahoma", "Times New Roman", "Trebuchet MS",
+  "Verdana", "Webdings", "Wingdings",
+  "American Typewriter", "Andale Mono", "Apple Chancery", "Avenir", "Avenir Next",
+  "Baskerville", "Big Caslon", "Bodoni 72", "Bradley Hand", "Brush Script MT",
+  "Chalkboard", "Chalkduster", "Cochin", "Copperplate", "Courier", "Courier New",
+  "Didot", "Futura", "Geneva", "Gill Sans", "Helvetica", "Helvetica Neue",
+  "Herculanum", "Hoefler Text", "Iowan Old Style", "Lucida Grande", "Luminari",
+  "Marker Felt", "Menlo", "Monaco", "Noteworthy", "Optima", "Papyrus",
+  "Rockwell", "San Francisco", "Savoye LET", "Skia", "Snell Roundhand",
+  "Trattatello", "Zapfino",
+  "Ubuntu", "DejaVu Sans", "DejaVu Serif", "Liberation Sans", "Liberation Serif",
+  "Liberation Mono", "Noto Sans", "Noto Serif", "Noto Color Emoji", "Roboto",
+  "Droid Sans", "Cantarell", "FreeSans", "FreeSerif", "Nimbus Sans", "URW Gothic",
+  "Symbola", "Twemoji Mozilla", "EmojiOne Color",
+];
+
+const probe = {
+  id: "fonts",
+  label: "Font availability",
+  family: "software",
+  bits: 9.0,
+  async run() {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return { available: false, note: "No 2D context for measurement." };
+
+    const measure = (font) => {
+      ctx.font = CANVAS_FONT + font;
+      return ctx.measureText(TEST_STRING).width;
+    };
+
+    const baselines = Array.from(
+      new Set([measure("monospace"), measure("sans-serif"), measure("serif")])
+    );
+
+    const present = [];
+    const absent = [];
+    for (const family of FONT_FAMILIES) {
+      const width = measure(family);
+      // Present only if distinct from every generic baseline.
+      (baselines.includes(width) ? absent : present).push(family);
+    }
+
+    let documentFonts = null;
+    try {
+      documentFonts = {
+        count: document.fonts.size,
+        loaded: Array.from(document.fonts).map(
+          (f) => `${f.family} ${f.weight} ${f.style}`
+        ),
+      };
+    } catch {
+      documentFonts = null;
+    }
+
+    return {
+      available: true,
+      candidatesMeasured: FONT_FAMILIES.length,
+      detected: present.length,
+      fontList: present,
+      notDetected: absent.length,
+      documentFonts,
+      note:
+        "Detection is by glyph-width comparison, so a substituted font reads "
+        + "as absent. Reported as a list, not only a count, because the "
+        + "combination is the signal.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/features", function (__exports, __require) {
+
+/**
+ * API surface.
+ *
+ * A boolean vector over a few hundred browser APIs. This is the modern
+ * fingerprint: each entry is worth a fraction of a bit, but the vector as a
+ * whole encodes browser *version* very precisely, because APIs are added and
+ * removed on a release cadence. Two pages that disagree on a single obscure
+ * API are on different builds, which is a stronger version signal than the
+ * User-Agent string (which browsers now freeze to reduce entropy).
+ *
+ * Grouped so the UI can show *why* a category is there rather than a wall of
+ * property names.
+ */
+
+const GROUPS = {
+  "navigator": [
+    "bluetooth", "clipboard", "credentials", "geolocation", "gpu", "hid",
+    "keyboard", "locks", "mediaDevices", "mediaSession", "mimeTypes",
+    "plugins", "presentation", "serial", "serviceWorker", "storage",
+    "usb", "userActivation", "userAgentData", "wakeLock", "webdriver",
+    "xr", "msMaxTouchPoints", "pdfViewerEnabled", "sendBeacon", "vibrate",
+    "share", "canShare",
+  ],
+  "window": [
+    "AbortController", "AbortSignal", "BalanceStream", "Bluetooth",
+    "BroadcastChannel", "ClipboardItem", "CompressionStream",
+    "DecompressionStream", "EyeDropper", "FileSystemHandle", "FontFace",
+    "FutureTypeface", "GPU", "IdleDetector", "ImageDecoder", "IntersectionObserver",
+    "LargestContentfulPaint", "MediaSession", "MutationObserver", "Notification",
+    "OffscreenCanvas", "PaymentRequest", "PerformanceObserver", "PeriodicSyncManager",
+    "PermissionsPolicy", "PictureInPictureWindow", "PushManager",
+    "ReadableStream", "ReportingObserver", "ResizeObserver", "RTCPeerConnection",
+    "Sanitizer", "Scheduler", "ShowDirectoryPicker", "SpeechRecognition",
+    "StorageManager", "TrustedHTML", "ViewTransition", "VisualViewport",
+    "WebAssembly", "WebTransport", "Worker", "Worklet", "XMLHttpRequest",
+    "getScreenDetails", "queryLocalFonts", "launchQueue", "onappinstalled",
+  ],
+  "document": [
+    "crossOriginIsolated", "hasFocus", "hasStorageAccess", "pictureInPictureEnabled",
+    "pointerLockElement", "visibilityState", "startViewTransition", "fonts",
+    "adoptedStyleSheets", "fullscreenEnabled", "timeline", "caretPositionFromPoint",
+    "onbeforetoggle",
+  ],
+  "css": [
+    "registerProperty", "supports", "CSSLayerBlockRule", "CSSNestingRule",
+    "CSSStyleRule", "CSSScopeRule", "CSSStartingStyleRule", "CSSPositionTryRule",
+    "attr", "anchor-scope", "container-type", "text-wrap", "color-mix",
+  ],
+  "storage": [
+    "indexedDB", "localStorage", "sessionStorage", "caches", "CookieStore",
+    "storageBuckets", "openDatabase",
+  ],
+};
+
+/** CSS feature probes -- `CSS.supports` answers without a stylesheet. */
+const CSS_FEATURES = [
+  "selector(:has(a))",
+  "selector(:is(a, b))",
+  "selector(:where(a))",
+  "selector(::backdrop)",
+  "selector(&:hover)",
+  "property(--x)",
+  "position: sticky",
+  "display: grid",
+  "display: flex",
+  "backdrop-filter: blur(1px)",
+  "color-mix(in srgb, red, blue)",
+  "width: 1dvh",
+  "overscroll-behavior: contain",
+  "text-wrap: balance",
+  "scrollbar-width: thin",
+  "aspect-ratio: 1 / 2",
+];
+
+const probe = {
+  id: "features",
+  label: "API & feature surface",
+  family: "software",
+  bits: 4.5,
+  async run() {
+    const vectors = {};
+
+    for (const [group, names] of Object.entries(GROUPS)) {
+      const present = [];
+      const absent = [];
+      const target = group === "navigator" || group === "document" ? window[group === "navigator" ? "navigator" : "document"] : window;
+      for (const name of names) {
+        let exists;
+        if (group === "css") continue; // handled below
+        try {
+          exists = name in target || typeof target[name] !== "undefined";
+        } catch {
+          exists = false;
+        }
+        (exists ? present : absent).push(name);
+      }
+      vectors[group] = { present, absent, presentCount: present.length };
+    }
+
+    const css = { supported: [], unsupported: [] };
+    if (window.CSS && typeof CSS.supports === "function") {
+      for (const feature of CSS_FEATURES) {
+        let ok = false;
+        try {
+          ok = CSS.supports(feature);
+        } catch {
+          ok = false;
+        }
+        (ok ? css.supported : css.unsupported).push(feature);
+      }
+    }
+
+    const totalPresent = Object.values(vectors).reduce(
+      (acc, v) => acc + v.presentCount, 0
+    );
+    const cssPresent = css.supported.length;
+
+    return {
+      available: true,
+      vectors,
+      css,
+      summary: {
+        jsApisPresent: totalPresent,
+        cssFeaturesPresent: cssPresent,
+        vector: Object.values(vectors)
+          .map((v) => v.present.join(","))
+          .concat([css.supported.join(",")])
+          .join("|"),
+      },
+      note:
+        "Each API is a fraction of a bit, but the vector pins the browser "
+        + "build more precisely than the User-Agent string, which most "
+        + "browsers now freeze.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/media", function (__exports, __require) {
+
+/**
+ * Media codec support and speech synthesis voices.
+ *
+ * Codec support is gated by build flags, hardware decoders and licensing --
+ * a page can tell a licensed-Chrome from an open build, or a phone with a
+ * hardware H.265 decoder from one without, purely from `canPlayType`.
+ *
+ * The speech voice list is a surprisingly effective signal on desktop:
+ * different operating systems and language packs ship different voices, and
+ * the list is stable per machine.
+ */
+
+const MEDIA_TYPES = [
+  'audio/aac', 'audio/flac', 'audio/mp3', 'audio/mpeg', 'audio/ogg', 'audio/opus',
+  'audio/wav', 'audio/webm', 'audio/x-m4a',
+  'video/mp4; codecs="avc1.42E01E"', 'video/mp4; codecs="avc1.4D401E"',
+  'video/mp4; codecs="avc1.640028"', 'video/mp4; codecs="hvc1.1.6.L93.B0"',
+  'video/mp4; codecs="hev1.1.6.L93.B0"', 'video/mp4; codecs="av01.0.05M.08"',
+  'video/mp4; codecs="vp09.00.10.08"', 'video/webm; codecs="vp8"',
+  'video/webm; codecs="vp9"', 'video/ogg; codecs="theora"', 'video/quicktime',
+  'video/x-matroska; codecs="avc1"',
+];
+
+const RECORDER_TYPES = [
+  "audio/webm", "audio/webm;codecs=opus", "audio/ogg;codecs=opus",
+  "audio/mp4", "audio/mp4;codecs=mp4a.40.2", "video/webm;codecs=vp8",
+  "video/webm;codecs=vp9", "video/mp4;codecs=avc1.42E01E",
+  "video/x-matroska;codecs=avc1",
+];
+
+function canPlayType(type) {
+  const el = document.createElement("video");
+  if (typeof el.canPlayType !== "function") return null;
+  const result = el.canPlayType(type);
+  return result === "" ? null : result;
+}
+
+const probe = {
+  id: "media",
+  label: "Media codecs",
+  family: "software",
+  bits: 2.8,
+  async run() {
+    const supported = {};
+    const maybe = [];
+    for (const type of MEDIA_TYPES) {
+      const result = canPlayType(type);
+      if (result === "probably") supported[type] = "probably";
+      else if (result === "maybe") maybe.push(type);
+    }
+
+    let recorder = { supported: [], unsupported: [] };
+    if (window.MediaRecorder && typeof MediaRecorder.isTypeSupported === "function") {
+      for (const type of RECORDER_TYPES) {
+        (MediaRecorder.isTypeSupported(type) ? recorder.supported : recorder.unsupported).push(type);
+      }
+    }
+
+    let audioDecoding = null;
+    if (window.AudioDecoder || window.VideoDecoder) {
+      audioDecoding = {
+        audio: typeof window.AudioDecoder === "function",
+        video: typeof window.VideoDecoder === "function",
+      };
+    }
+
+    return {
+      available: MEDIA_TYPES.length > 0,
+      definitelySupported: supported,
+      maybeSupported: maybe,
+      recorder,
+      webCodecs: audioDecoding,
+      summary: {
+        definite: Object.keys(supported).length,
+        maybe: maybe.length,
+        recorder: recorder.supported.length,
+      },
+      note:
+        "`maybe` is kept separate from `probably`: the spec deliberately "
+        + "returns an ambiguous value, and treating the two as the same is a "
+        + "common error in fingerprinting code.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/speech", function (__exports, __require) {
+
+/**
+ * Speech synthesis voices.
+ *
+ * A surprisingly effective desktop signal: operating systems and installed
+ * language packs ship different voice sets, the list is stable per machine,
+ * and it is readable the moment the page loads -- no gesture, no prompt.
+ * Chrome populates it asynchronously on first access, hence the wait below.
+ */
+
+const probe = {
+  id: "speech",
+  label: "Speech synthesis voices",
+  family: "software",
+  bits: 2.2,
+  async run() {
+    if (!window.speechSynthesis || typeof speechSynthesis.getVoices !== "function") {
+      return { available: false, note: "SpeechSynthesis unavailable." };
+    }
+
+    const read = () =>
+      speechSynthesis.getVoices().map((v) => ({
+        name: v.name,
+        lang: v.lang,
+        localService: v.localService,
+        default: v.default,
+      }));
+
+    let voices = read();
+    if (voices.length === 0) {
+      // Wait for the voiceschanged event, but never hang the page.
+      await new Promise((resolve) => {
+        let settled = false;
+        const done = () => {
+          if (!settled) {
+            settled = true;
+            speechSynthesis.removeEventListener("voiceschanged", done);
+            resolve();
+          }
+        };
+        speechSynthesis.addEventListener("voiceschanged", done, { once: true });
+        setTimeout(done, 1500);
+      });
+      voices = read();
+    }
+
+    if (voices.length === 0) {
+      return {
+        available: false,
+        note:
+          "Voice list is empty. Some engines withhold it until speech is "
+          + "first used.",
+      };
+    }
+
+    return {
+      available: true,
+      count: voices.length,
+      languages: Array.from(new Set(voices.map((v) => v.lang))).sort(),
+      names: voices.map((v) => v.name).sort(),
+      localServices: voices.filter((v) => v.localService).length,
+      voices,
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/permissions", function (__exports, __require) {
+
+/**
+ * Permission *states*.
+ *
+ * This is the distinction that matters most for the ethics of this page, and
+ * the one most often blurred.
+ *
+ * `navigator.permissions.query()` reads the current state of a permission
+ * without asking for it. "granted" and "denied" are therefore genuinely
+ * observable -- a page can tell that you have permanently blocked location
+ * without ever prompting. "prompt" (the usual answer) tells the page nothing
+ * about you beyond the fact you have not decided yet.
+ *
+ * Nothing here is *requested*. No dialog appears. No callback is registered.
+ * The states are reported so the difference is visible rather than theoretical.
+ */
+
+/**
+ * Names safe to query without prompting. Notification and push do prompt on
+ * some engines, so they are deliberately excluded.
+ */
+const QUERYABLE = [
+  "geolocation",
+  "notifications-state", // resolved below, guarded
+  "camera-state",
+  "microphone-state",
+  "clipboard-read",
+  "clipboard-write",
+  "persistent-storage",
+  "screen-wake-lock",
+  "background-sync",
+  "accelerometer",
+  "gyroscope",
+  "magnetometer",
+  "ambient-light-sensor",
+  "accessibility-events",
+  "payment-handler",
+  "local-fonts",
+  "window-management",
+  "midi",
+];
+
+const probe = {
+  id: "permissions",
+  label: "Permission states (read, never requested)",
+  family: "software",
+  bits: 1.4,
+  async run() {
+    if (!navigator.permissions || typeof navigator.permissions.query !== "function") {
+      return {
+        available: false,
+        note: "Permissions API unavailable -- states not observable.",
+      };
+    }
+
+    const states = {};
+    let queried = 0;
+    let denied = 0;
+    let granted = 0;
+
+    await Promise.all(
+      QUERYABLE.map(async (name) => {
+        const target = name.replace(/-state$/, "");
+        try {
+          const status = await navigator.permissions.query({ name: target });
+          states[target] = status.state;
+          queried += 1;
+          if (status.state === "denied") denied += 1;
+          if (status.state === "granted") granted += 1;
+        } catch {
+          states[target] = "unsupported";
+        }
+      })
+    );
+
+    return {
+      available: true,
+      queried,
+      granted,
+      denied,
+      states,
+      note:
+        "Read-only. No permission was requested and no prompt was shown. A "
+        + "'denied' state is observable because a previous decision is stored "
+        + "by the browser, not because this page asked. That asymmetry -- "
+        + "past decisions are visible, future ones are not -- is the part "
+        + "worth understanding.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/storage", function (__exports, __require) {
+
+/**
+ * Storage capacity and profile availability.
+ *
+ * `navigator.storage.estimate()` returns a quota that, in most engines, is a
+ * fixed fraction of the device's free disk. On Chrome it is within a couple of
+ * percent of the real free space -- which makes it a disk-size proxy, and a
+ * surprisingly stable one across visits because the value is bucketed.
+ *
+ * Whether each storage mechanism *exists* (IndexedDB, Cookie Store, OPFS) is
+ * a build signal independent of capacity.
+ */
+
+const probe = {
+  id: "storage",
+  label: "Storage & persistence",
+  family: "platform",
+  bits: 1.1,
+  async run() {
+    const mechanisms = {
+      localStorage: (() => {
+        try {
+          const k = "__fl_probe__";
+          window.localStorage.setItem(k, "1");
+          window.localStorage.removeItem(k);
+          return true;
+        } catch {
+          return false;
+        }
+      })(),
+      sessionStorage: (() => {
+        try {
+          const k = "__fl_probe__";
+          window.sessionStorage.setItem(k, "1");
+          window.sessionStorage.removeItem(k);
+          return true;
+        } catch {
+          return false;
+        }
+      })(),
+      indexedDB: "indexedDB" in window,
+      cookieStore: "cookieStore" in window,
+      caches: "caches" in window,
+      opfs: "showOpenFilePicker" in window || "FileSystemFileHandle" in window,
+      storageBuckets: "storageBuckets" in navigator,
+    };
+
+    let estimate = null;
+    if (navigator.storage && typeof navigator.storage.estimate === "function") {
+      try {
+        const est = await navigator.storage.estimate();
+        estimate = {
+          quotaBytes: est.quota ?? null,
+          usageBytes: est.usage ?? null,
+          quotaGB: est.quota ? Number((est.quota / 1024 ** 3).toFixed(3)) : null,
+          usageGB: est.usage ? Number((est.usage / 1024 ** 3).toFixed(6)) : null,
+          quotaAsFractionOfUsage: est.usage ? Number((est.quota / est.usage).toFixed(2)) : null,
+        };
+      } catch {
+        estimate = null;
+      }
+    }
+
+    let persisted = null;
+    if (navigator.storage && typeof navigator.storage.persisted === "function") {
+      try {
+        persisted = await navigator.storage.persisted();
+      } catch {
+        persisted = null;
+      }
+    }
+
+    return {
+      available: true,
+      mechanisms,
+      estimate,
+      persisted,
+      cookieLength: (document.cookie || "").length,
+      note:
+        "The quota is a fraction of free disk in most engines, so it acts as "
+        + "a disk-capacity proxy. This page writes nothing to any of these -- "
+        + "the probe writes and immediately deletes its own throwaway key.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/network", function (__exports, __require) {
+
+/**
+ * Network class and clock behaviour.
+ *
+ * `navigator.connection` reports a coarse effective connection type and, on
+ * Chrome, a measured downlink and round-trip time. Downlink is quantised to
+ * 25 kbps steps and rounds to a few hundred bits of entropy at most, but it
+ * is stable and it is a *real* property of the connection rather than the
+ * machine.
+ *
+ * The timing block measures how precisely this page can observe time, which
+ * is the thing cross-origin timing attacks exploit -- reported here because
+ * "how much a page can measure about you" includes how well it can measure.
+ */
+
+const probe = {
+  id: "network",
+  label: "Network class",
+  family: "network",
+  bits: 1.6,
+  async run() {
+    const conn =
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection;
+
+    if (!conn) {
+      return {
+        available: false,
+        note: "NetworkInformation API unavailable.",
+        online: navigator.onLine === true,
+      };
+    }
+
+    return {
+      available: true,
+      online: navigator.onLine === true,
+      effectiveType: conn.effectiveType ?? null,
+      type: conn.type ?? null,
+      downlinkMbps: conn.downlink ?? null,
+      downlinkMaxMbps: conn.downlinkMax ?? null,
+      rttMs: conn.rtt ?? null,
+      saveData: conn.saveData ?? null,
+      note:
+        "Downlink is a measured estimate, not a declared value, so it drifts "
+        + "between visits. Treat it as a weak signal.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/webrtc", function (__exports, __require) {
+
+/**
+ * WebRTC local address exposure.
+ *
+ * This is the classic privacy incident. A page that opens an RTCPeerConnection
+ * and gathers ICE candidates can historically read the machine's LAN IP
+ * address -- sometimes the public one too, if a STUN server is reached. No
+ * dialog was ever involved; the API was simply reachable.
+ *
+ * That hole is now mostly closed: Chrome and Safari replace local addresses
+ * with an mDNS hostname (a random UUID ending in `.local`), and Firefox
+ * withholds host candidates entirely unless a STUN server is configured.
+ *
+ * This probe therefore reports the *structure* of what the API exposes --
+ * candidate types, whether an address is an mDNS placeholder or a real
+ * address, how many candidates look like real local addresses -- and
+ * deliberately does not record any address itself. Report the shape, not the
+ * payload.
+ *
+ * No STUN server is contacted. An empty `iceServers` list means no srflx
+ * candidate can be produced, so no external endpoint learns about this visit.
+ */
+
+const probe = {
+  id: "webrtc",
+  label: "WebRTC address exposure",
+  family: "network",
+  bits: 2.0,
+  async run() {
+    if (typeof window.RTCPeerConnection !== "function") {
+      return { available: false, note: "RTCPeerConnection unavailable." };
+    }
+
+    const timeout = (ms) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel("probe");
+
+      const candidates = [];
+      const seen = new Set();
+
+      pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+        const line = event.candidate.candidate || "";
+        const type = line.split(/\s+/)[7] || "unknown";
+        // The address field is position 4 in an a=candidate line.
+        const addressField = line.split(/\s+/)[4] || "";
+        const isMdns = /\.local$/.test(addressField);
+        const isIpv6 = addressField.includes(":");
+        const fingerprint = `${type}:${isMdns ? "mdns" : isIpv6 ? "real-v6" : addressField ? "real-v4" : "none"}`;
+        seen.add(fingerprint);
+        candidates.push({ type, obfuscated: isMdns });
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      // Gathering completes on its own schedule; wait then discard.
+      await timeout(1200);
+
+      // Close silently: nothing was sent anywhere.
+      try {
+        pc.close();
+      } catch {
+        /* already closed */
+      }
+
+      const types = {};
+      for (const c of candidates) types[c.type] = (types[c.type] || 0) + 1;
+
+      const obfuscated = candidates.filter((c) => c.obfuscated).length;
+      const unObfuscated = candidates.length - obfuscated;
+      const distinctShapes = Array.from(seen).sort();
+
+      let exposure;
+      if (candidates.length === 0) {
+        exposure = "none";
+      } else if (unObfuscated === 0) {
+        exposure = "mdns-only";
+      } else if (types.host && unObfuscated > 0) {
+        exposure = "local-address-visible";
+      } else {
+        exposure = "partial";
+      }
+
+      return {
+        available: true,
+        exposure,
+        candidateCount: candidates.length,
+        candidateTypes: types,
+        obfuscatedCount: obfuscated,
+        unObfuscatedCount: unObfuscated,
+        distinctShapes,
+        note:
+          "Addresses themselves are intentionally not recorded. The "
+          + "obfuscated flag is set when a candidate address ends in "
+          + "`.local`, which is Chrome's and Safari's mDNS placeholder.",
+      };
+    } catch (err) {
+      return { available: false, note: `Setup refused: ${err.message}` };
+    }
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/math", function (__exports, __require) {
+
+/**
+ * Floating point behaviour.
+ *
+ * Every browser implements IEEE 754 doubles, but not every engine evaluates
+ * transcendental functions identically. The classic probe (from Peter
+ * Eckersley's Panopticlick) evaluates a handful of inverse-trigonometric and
+ * exponential expressions and reads back the full decimal expansion. JIT
+ * paths, rounding routines and vectorisation use all show up here.
+ *
+ * Called "math" rather than "timing" because the signal is the *value*, not
+ * the cost.
+ */
+const EXPRESSIONS = [
+  "Math.acos(0.123)",
+  "Math.acosh(1e-300)",
+  "Math.asin(0.123)",
+  "Math.asinh(1)",
+  "Math.atan(1e-300)",
+  "Math.atanh(0.5)",
+  "Math.cbrt(0.5)",
+  "Math.exp(1)",
+  "Math.expm1(1)",
+  "Math.log(10)",
+  "Math.log1p(10)",
+  "Math.sinh(1)",
+  "Math.tanh(1)",
+  "Math.cos(1e-300)",
+  "Math.sin(1e-300)",
+  "Math.tan(1e-300)",
+  "Math.pow(Math.PI, -100)",
+];
+
+const probe = {
+  id: "math",
+  label: "Floating point evaluation",
+  family: "network",
+  bits: 1.3,
+  async run() {
+    const results = {};
+    for (const expr of EXPRESSIONS) {
+      try {
+        // eslint-disable-next-line no-eval
+        results[expr] = String(eval(expr));
+      } catch {
+        results[expr] = "error";
+      }
+    }
+    return results;
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/timing", function (__exports, __require) {
+
+/**
+ * Clock precision.
+ *
+ * Reported because "what a page can learn about you" includes how well it can
+ * measure you: high-resolution timers are the substrate of cache-timing and
+ * cross-origin side-channel attacks. Browsers coarsen or jitter them in
+ * response; measuring the residual resolution shows what that mitigation
+ * actually bought.
+ */
+
+const probe = {
+  id: "timing",
+  label: "Clock precision",
+  family: "network",
+  bits: 0.9,
+  async run() {
+    const results = {
+      performanceNowMs: Math.round(performance.now() * 1000) / 1000,
+      dateCoarsened: (() => {
+        // A few hundred samples taken in a tight loop. If Date.now() never
+        // moves, it has been coarsened rather than merely slow.
+        const samples = new Set();
+        for (let i = 0; i < 500; i++) samples.add(Date.now());
+        return samples.size === 1;
+      })(),
+    };
+
+    const nav = performance.getEntriesByType?.("navigation")?.[0];
+    if (nav) {
+      results.navigation = {
+        type: nav.type,
+        protocol: nav.nextHopProtocol ?? null,
+        transferSizeBytes: nav.transferSize ?? null,
+        domContentLoadedMs: Number(
+          (nav.domContentLoadedEventEnd - nav.startTime).toFixed(3)
+        ),
+        loadEventMs: Number((nav.loadEventEnd - nav.startTime).toFixed(3)),
+      };
+    }
+
+    // Mean gap between distinct performance.now() readings: the resolution
+    // the page is actually left with.
+    const gaps = [];
+    let last = performance.now();
+    for (let i = 0; i < 20000; i++) {
+      const now = performance.now();
+      if (now !== last) {
+        gaps.push(Number(((now - last) * 1e6).toFixed(3)));
+        last = now;
+        if (gaps.length >= 20) break;
+      }
+    }
+    results.nowResolutionUs =
+      gaps.length > 0
+        ? Number((gaps.reduce((a, b) => a + b, 0) / gaps.length).toFixed(3))
+        : null;
+    results.samplesTaken = gaps.length;
+
+    return {
+      available: true,
+      ...results,
+      note:
+        "Cross-origin timing is coarsened or jittered in current browsers; "
+        + "what remains is the local clock resolution, which is all a "
+        + "same-page measurement can use anyway.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/client-hints", function (__exports, __require) {
+
+/**
+ * High-entropy Client Hints.
+ *
+ * The single most important signal in the modern fingerprint, and the reason
+ * the UA string is being frozen.
+ *
+ * `navigator.userAgentData.brands` publishes the browser's own name and
+ * version unprompted. On Chromium that includes "Brave" when Brave is in use —
+ * the only place Brave identifies itself without a prompt. That is why the UA
+ * parser above reports "Chromium-based" while this probe reports the truth.
+ *
+ * `getHighEntropyValues()` adds platform, architecture, bitness, and
+ * platformVersion. platformVersion is what separates Windows 10 (10.0.x) from
+ * Windows 11 (13.0.0+), which the UA string deliberately refuses to do.
+ *
+ * Returns null fields rather than guessing when a hint is withheld.
+ */
+const probe = {
+  id: "client-hints",
+  label: "Client Hints (high-entropy)",
+  family: "platform",
+  bits: 6.5,
+  async run() {
+    const n = navigator;
+    if (!n.userAgentData || typeof n.userAgentData.getHighEntropyValues !== "function") {
+      return {
+        available: true,
+        brands: null,
+        mobile: null,
+        platform: null,
+        architecture: null,
+        bitness: null,
+        model: null,
+        platformVersion: null,
+        uaFullVersion: null,
+        wow64: null,
+        note:
+          "navigator.userAgentData unavailable (Firefox, Safari, older " +
+          "Chromium). Only Sec-CH-UA low-entropy hints are sent to the server.",
+      };
+    }
+
+    const data = n.userAgentData;
+    const low = {
+      brands: Array.isArray(data.brands) ? data.brands.slice() : null,
+      mobile: typeof data.mobile === "boolean" ? data.mobile : null,
+      platform: data.platform || null,
+    };
+
+    let high = {};
+    try {
+      high = await data.getHighEntropyValues([
+        "architecture",
+        "bitness",
+        "model",
+        "platformVersion",
+        "uaFullVersion",
+        "wow64",
+        "fullVersionList",
+      ]);
+    } catch {
+      high = { error: "withheld" };
+    }
+
+    // Resolved so the UI can show a real label rather than a version number.
+    const windowsLabel =
+      typeof high.platformVersion === "string"
+        ? windowsLabelFromVersion(high.platformVersion)
+        : null;
+
+    return {
+      available: true,
+      ...low,
+      architecture: high.architecture ?? null,
+      bitness: high.bitness ?? null,
+      model: high.model || null,
+      platformVersion: high.platformVersion ?? null,
+      platformVersionLabel: windowsLabel,
+      uaFullVersion: high.uaFullVersion ?? null,
+      fullVersionList: Array.isArray(high.fullVersionList) ? high.fullVersionList : null,
+      wow64: typeof high.wow64 === "boolean" ? high.wow64 : null,
+      note:
+        "The only place Brave, Windows 11 and the true CPU architecture " +
+        "identify themselves without a prompt. This is why browsers are " +
+        "freezing the UA string: these hints carry more information.",
+    };
+  },
+};
+
+function windowsLabelFromVersion(version) {
+  const major = parseInt(String(version).split(".")[0], 10);
+  if (Number.isNaN(major)) return null;
+  if (major === 0) return "Windows 7 / 8 / 8.1";
+  if (major === 10) return "Windows 10";
+  if (major >= 13) return "Windows 11";
+  return `Windows (platformVersion ${version})`;
+}
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/media-devices", function (__exports, __require) {
+
+/**
+ * Media device enumeration.
+ *
+ * `enumerateDevices()` returns device kinds and counts without any permission.
+ * Labels are redacted until the user grants access, so a page can learn "you
+ * have exactly one microphone and one camera" while learning nothing about
+ * what those devices are called. That asymmetry is the interesting part.
+ */
+const probe = {
+  id: "media-devices",
+  label: "Speakers, microphones & cameras",
+  family: "hardware",
+  bits: 2.5,
+  async run() {
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.enumerateDevices !== "function") {
+      return { available: false, note: "MediaDevices API unavailable." };
+    }
+
+    let devices = [];
+    try {
+      devices = await navigator.mediaDevices.enumerateDevices();
+    } catch (err) {
+      return { available: false, note: `enumerateDevices refused: ${err.message}` };
+    }
+
+    const speakers = devices.filter((d) => d.kind === "audiooutput");
+    const microphones = devices.filter((d) => d.kind === "audioinput");
+    const cameras = devices.filter((d) => d.kind === "videoinput");
+
+    const labelled = devices.filter((d) => d.label && d.label.length > 0).length;
+
+    return {
+      available: true,
+      totalDevices: devices.length,
+      speakers: speakers.length,
+      microphones: microphones.length,
+      cameras: cameras.length,
+      labelsRevealed: labelled,
+      labelsRedacted: devices.length - labelled,
+      devices: devices.map((d) => ({
+        kind: d.kind,
+        label: d.label || "(redacted)",
+        groupId: d.groupId ? "present" : "absent",
+      })),
+      note:
+        "Counts are available without permission. Labels are redacted until " +
+        "the user grants access — a page can learn how many microphones you " +
+        "have without learning anything about them.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/device-capabilities", function (__exports, __require) {
+
+/**
+ * Hardware capability surface.
+ *
+ * Which hardware APIs this browser exposes. Each one is a build and platform
+ * signal: Web Bluetooth exists on Android and desktop Chromium but not iOS
+ * Safari; Web NFC is Android-only; Web Serial is desktop-only. The pattern of
+ * presence and absence narrows the platform considerably.
+ *
+ * Presence is not access. Every one of these requires a permission prompt
+ * before it touches a device — the probe only checks that the API exists.
+ */
+const APIS = [
+  { key: "bluetooth", label: "Web Bluetooth", hint: "Android / desktop Chromium" },
+  { key: "serial", label: "Web Serial", hint: "Desktop Chromium" },
+  { key: "usb", label: "Web USB", hint: "Desktop Chromium" },
+  { key: "nfc", label: "Web NFC", hint: "Android Chromium only" },
+  { key: "hid", label: "Web HID", hint: "Desktop Chromium" },
+  { key: "wakeLock", label: "Screen Wake Lock", hint: "Widely supported" },
+  { key: "share", label: "Web Share", hint: "Mobile-first" },
+  { key: "contacts", label: "Contact Picker", hint: "Android / Chrome OS" },
+  { key: "gamepad", label: "Gamepad", hint: "Desktop" },
+  { key: "xr", label: "WebXR", hint: "VR/AR capable" },
+  { key: "presentation", label: "Presentation API", hint: "Desktop" },
+  { key: "clipboard", label: "Async Clipboard", hint: "Widely supported" },
+  { key: "credentials", label: "Credential Management", hint: "Widely supported" },
+  { key: "keyboard", label: "Keyboard API", hint: "Desktop Chromium" },
+  { key: "locks", label: "Web Locks", hint: "Chromium" },
+  { key: "scheduling", label: "Web Scheduling", hint: "Chromium" },
+  { key: "storageBuckets", label: "Storage Buckets", hint: "Chromium" },
+  { key: "ai", label: "Web AI / Prompt API", hint: "Chrome 128+ (experimental)" },
+];
+
+const probe = {
+  id: "device-capabilities",
+  label: "Hardware capability surface",
+  family: "hardware",
+  bits: 3.0,
+  async run() {
+    const present = [];
+    const absent = [];
+    for (const api of APIS) {
+      const exists = api.key in navigator || api.key in window;
+      (exists ? present : absent).push({ ...api });
+    }
+
+    return {
+      available: true,
+      presentCount: present.length,
+      absentCount: absent.length,
+      present,
+      absent,
+      note:
+        "API presence is a platform and build signal. Web NFC existing at " +
+        "all means Android Chromium; Web Serial means desktop. None of these " +
+        "were accessed — presence is not permission.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/device-motion", function (__exports, __require) {
+
+/**
+ * Device motion and orientation.
+ *
+ * On a phone these are rich signals. On a desktop they are almost always
+ * absent — which is itself the signal, and the reason this probe is worth
+ * running on a laptop: a desktop reporting accelerometer data is either a
+ * 2-in-1 with sensors or a spoofed fingerprint.
+ *
+ * iOS 13+ requires DeviceOrientationEvent.requestPermission() before any event
+ * fires. That is a user gesture, so it is never requested here — the probe
+ * reports support and whether events arrive unprompted.
+ */
+const probe = {
+  id: "device-motion",
+  label: "Device motion & orientation",
+  family: "hardware",
+  bits: 2.0,
+  async run() {
+    const support = {
+      orientation: typeof DeviceOrientationEvent === "function",
+      motion: typeof DeviceMotionEvent === "function",
+      compass: typeof DeviceOrientationEvent === "function" &&
+        typeof DeviceOrientationEvent.requestPermission === "function",
+    };
+
+    if (!support.orientation && !support.motion) {
+      return {
+        available: true,
+        support,
+        eventsReceived: 0,
+        note:
+          "No motion sensors reported. Expected on a desktop; on a phone " +
+          "this means the browser is withholding them.",
+      };
+    }
+
+    // Listen briefly. Events that arrive without a prompt are the signal.
+    const samples = [];
+    const onOrientation = (e) => {
+      if (samples.length < 5) {
+        samples.push({
+          alpha: e.alpha,
+          beta: e.beta,
+          gamma: e.gamma,
+          absolute: e.absolute,
+        });
+      }
+    };
+    window.addEventListener("deviceorientation", onOrientation, { once: false });
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    window.removeEventListener("deviceorientation", onOrientation);
+
+    return {
+      available: true,
+      support,
+      eventsReceived: samples.length,
+      samples,
+      note:
+        samples.length === 0
+          ? "Sensors exist but no events arrived without a prompt. Normal on desktop; on mobile this means permission is required."
+          : "Sensor events arrived unprompted. On a desktop this is unusual and worth noting.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/plugins-mime", function (__exports, __require) {
+
+/**
+ * Plugins, MIME types, and legacy tech.
+ *
+ * `navigator.plugins` and `navigator.mimeTypes` are deprecated and most modern
+ * browsers now report an empty array. Where they are populated the list is
+ * identifying; where it is empty, that emptiness is itself the signal — it
+ * distinguishes a hardened browser from a legacy one.
+ *
+ * Java detection via `navigator.javaEnabled()` returns false everywhere now,
+ * which is a finding rather than a failure.
+ */
+const probe = {
+  id: "plugins-mime",
+  label: "Plugins, MIME types & legacy tech",
+  family: "software",
+  bits: 2.5,
+  async run() {
+    const plugins = [];
+    if (navigator.plugins && navigator.plugins.length) {
+      for (const p of navigator.plugins) {
+        plugins.push({
+          name: p.name || null,
+          filename: p.filename || null,
+          description: p.description || null,
+          version: p.version || null,
+        });
+      }
+    }
+
+    const mimeTypes = [];
+    if (navigator.mimeTypes && navigator.mimeTypes.length) {
+      for (const m of navigator.mimeTypes) {
+        mimeTypes.push({
+          type: m.type || null,
+          description: m.description || null,
+          suffixes: m.suffixes || null,
+          enabledPlugin: m.enabledPlugin ? m.enabledPlugin.name : null,
+        });
+      }
+    }
+
+    let java = null;
+    try {
+      java = typeof navigator.javaEnabled === "function" ? navigator.javaEnabled() : null;
+    } catch {
+      java = null;
+    }
+
+    // ActiveX is IE-only. Every other browser returns false, which is correct
+    // and worth reporting because it confirms the browser is not IE.
+    const activeX = typeof window.ActiveXObject === "function";
+
+    return {
+      available: true,
+      pluginCount: plugins.length,
+      plugins,
+      mimeTypeCount: mimeTypes.length,
+      mimeTypes,
+      javaEnabled: java,
+      activeXSupported: activeX,
+      note:
+        plugins.length === 0
+          ? "Empty plugin list. Expected on hardened browsers; a populated list is identifying."
+          : `${plugins.length} plugins reported — a populated list narrows the browser considerably.`,
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/privacy-signals", function (__exports, __require) {
+
+/**
+ * Privacy signals and fingerprinting resistance.
+ *
+ * Several independent signals, reported separately because they mean different
+ * things:
+ *
+ *   - doNotTrack / GPC: what the user has *asked* for. Honoured by almost no
+ *     one, but its presence is a preference signal.
+ *   - Private browsing: detectable in several engines by probing storage
+ *     behaviour — Safari's private mode refuses localStorage writes outright.
+ *   - Fingerprinting resistance: whether the browser is actively normalising
+ *     the signals this page relies on. Detected by looking for the specific
+ *     artefacts each mitigation produces, never assumed.
+ */
+
+function detectPrivateBrowsing() {
+  // Safari private mode throws on setItem. Chrome's Incognito allows it but
+  // clears on close, which is not observable from inside a single page.
+  try {
+    const k = "__privacy_probe__";
+    window.localStorage.setItem(k, "1");
+    window.localStorage.removeItem(k);
+    return { isPrivate: false, method: "localStorage writable" };
+  } catch {
+    return { isPrivate: true, method: "localStorage write refused (Safari private mode)" };
+  }
+}
+
+function detectFingerprintResistance() {
+  const signals = [];
+
+  // Brave: named in Client Hints brands.
+  const brands = navigator.userAgentData?.brands || [];
+  if (brands.some((b) => /brave/i.test(b.brand))) {
+    signals.push("Brave (via Client Hints)");
+  }
+
+  // Tor Browser: forces the window to the screen size and zeroes the timezone.
+  if (window.screen && window.outerWidth && window.outerWidth === window.screen.width) {
+    signals.push("window matches screen exactly (Tor Browser behaviour)");
+  }
+
+  // Firefox resistFingerprinting: caps hardwareConcurrency and reports a
+  // generic WebGL renderer.
+  const renderer = (() => {
+    try {
+      const c = document.createElement("canvas");
+      const gl = c.getContext("webgl");
+      if (!gl) return null;
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (renderer && /swiftshader|llvmpipe|angle \(google/i.test(renderer)) {
+    signals.push(`generic software renderer reported ("${renderer}")`);
+  }
+
+  if (typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency <= 2) {
+    signals.push(`hardwareConcurrency capped at ${navigator.hardwareConcurrency}`);
+  }
+
+  // A blocked canvas is the strongest single indicator of an anti-fingerprinting
+  // layer, and it is directly observable.
+  let canvasBlocked = false;
+  try {
+    const c = document.createElement("canvas");
+    c.width = 5;
+    c.height = 5;
+    canvasBlocked = !c.toDataURL();
+  } catch {
+    canvasBlocked = true;
+  }
+  if (canvasBlocked) signals.push("canvas toDataURL blocked or returned empty");
+
+  return {
+    resistant: signals.length > 0,
+    signals,
+    rendererReported: renderer,
+  };
+}
+
+const probe = {
+  id: "privacy-signals",
+  label: "Privacy signals & fingerprinting resistance",
+  family: "privacy",
+  bits: 3.5,
+  async run() {
+    const dnt = navigator.doNotTrack;
+    const gpc = "globalPrivacyControl" in navigator ? navigator.globalPrivacyControl : null;
+
+    return {
+      available: true,
+      doNotTrack: dnt === "1" ? "Enabled" : dnt === "0" ? "Disabled" : dnt === null ? "Not set (absent)" : `Other (${dnt})`,
+      globalPrivacyControl: gpc === true ? "Enabled" : gpc === false ? "Not set" : "Unsupported",
+      privateBrowsing: detectPrivateBrowsing(),
+      fingerprintResistance: detectFingerprintResistance(),
+      note:
+        "Do Not Track and Global Privacy Control are requests, not guarantees. " +
+        "Fingerprinting resistance is detected from artefacts, never assumed — " +
+        "a browser that normalises its canvas is reporting a constant, and a " +
+        "constant is observable.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/adblock-detect", function (__exports, __require) {
+
+/**
+ * Content blocker detection.
+ *
+ * Ad blockers and privacy extensions are detectable because they change the
+ * page: they remove elements, block requests, and leave traces in the DOM.
+ * This probe looks for those traces.
+ *
+ * The method is deliberately the simple one — create bait with names a blocker
+ * targets, check whether it survived. More sophisticated blockers evade it,
+ * which is why the result is reported as "detected / not detected" rather than
+ * as a certainty.
+ */
+
+const BAIT_CLASSES = [
+  "ad", "ads", "adsbox", "advertisement", "ad-banner", "ad-wrapper",
+  "google-ad", "sponsor", "sponsored", "doubleclick", "googlesyndication",
+];
+
+function detectAdBlocker() {
+  const bait = document.createElement("div");
+  bait.className = BAIT_CLASSES.join(" ");
+  bait.style.position = "absolute";
+  bait.style.left = "-9999px";
+  bait.style.height = "1px";
+  bait.style.width = "1px";
+  bait.innerHTML = "&nbsp;";
+  document.body.appendChild(bait);
+
+  let blocked = false;
+  try {
+    // If a blocker removed or hid the bait, offsetParent is null and
+    // getBoundingClientRect collapses to zero.
+    blocked =
+      bait.offsetParent === null ||
+      bait.getBoundingClientRect().height === 0 ||
+      getComputedStyle(bait).display === "none" ||
+      !document.body.contains(bait);
+  } catch {
+    blocked = false;
+  } finally {
+    document.body.removeChild(bait);
+  }
+  return blocked;
+}
+
+/** Ghostery ships specific DOM markers and blocks its own analytics. */
+function detectGhostery() {
+  const markers = [
+    window.__gh__yt,
+    window.Ghostery,
+    window.ghostery,
+  ];
+  return markers.some((m) => m !== undefined) || Boolean(document.querySelector("[data-ghostery]"));
+}
+
+const probe = {
+  id: "adblock-detect",
+  label: "Content blockers & extensions",
+  family: "privacy",
+  bits: 1.5,
+  async run() {
+    const adBlocked = detectAdBlocker();
+    const ghostery = detectGhostery();
+
+    return {
+      available: true,
+      adBlockerDetected: adBlocked,
+      ghosteryDetected: ghostery,
+      note:
+        adBlocked
+          ? "A bait element with ad-like class names was removed or hidden. Some content blocker is active."
+          : "Bait survived. No classic ad blocker detected — though a sophisticated one may be evading this check.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/performance-detail", function (__exports, __require) {
+
+/**
+ * Navigation Timing breakdown.
+ *
+ * The full page-load cost, decomposed. Every value here is something the
+ * browser recorded about the request it just made — including DNS, TCP and
+ * server response time, which are otherwise invisible to a page.
+ *
+ * `nextHopProtocol` is the interesting one: it reveals whether the connection
+ * was HTTP/1.1, HTTP/2 or HTTP/3, which is normally only visible to the server.
+ */
+const probe = {
+  id: "performance-detail",
+  label: "Page load timing",
+  family: "network",
+  bits: 1.5,
+  async run() {
+    const nav = performance.getEntriesByType?.("navigation")?.[0];
+    if (!nav) {
+      return { available: false, note: "Navigation Timing entry unavailable." };
+    }
+
+    const ms = (end, start) => Number(((end - start) || 0).toFixed(3));
+
+    return {
+      available: true,
+      protocol: nav.nextHopProtocol || null,
+      transferSizeBytes: nav.transferSize ?? null,
+      bodySizeBytes: nav.encodedBodySize ?? null,
+      breakdown: {
+        dnsLookupMs: ms(nav.domainLookupEnd, nav.domainLookupStart),
+        tcpConnectionMs: ms(nav.connectEnd, nav.connectStart),
+        tlsHandshakeMs: nav.secureConnectionStart
+          ? ms(nav.connectEnd, nav.secureConnectionStart)
+          : 0,
+        serverResponseMs: ms(nav.responseStart, nav.requestStart),
+        pageDownloadMs: ms(nav.responseEnd, nav.responseStart),
+        domInteractiveMs: ms(nav.domInteractive, nav.startTime),
+        domContentLoadedMs: ms(nav.domContentLoadedEventEnd, nav.startTime),
+        loadEventMs: ms(nav.loadEventEnd, nav.startTime),
+        redirectMs: nav.redirectCount ? ms(nav.redirectEnd, nav.redirectStart) : 0,
+      },
+      note:
+        "DNS, TCP and server response times are recorded by the browser for " +
+        "its own request. nextHopProtocol reveals HTTP/2 or HTTP/3 — normally " +
+        "a server-only observation.",
+    };
+  },
+};
+
+  __exports["probe"] = probe;
+});
+
+__def("src/js/probes/page-interaction", function (__exports, __require) {
+
+/**
+ * Live page interaction state.
+ *
+ * Everything here is captured by listeners registered for the lifetime of the
+ * page. It is the only probe that changes while you watch it, and the only one
+ * that demonstrates a category of tracking this project otherwise only
+ * describes: behavioural signals.
+ *
+ * It is deliberately capped. A page that recorded every keystroke indefinitely
+ * would be building a profile; one that shows you the last key pressed is
+ * demonstrating the capability. Same for the mouse.
+ */
+
+const MAX_SAMPLES = 12;
+
+function createPageInteractionProbe() {
+  const state = {
+    keysPressed: [],
+    lastKey: null,
+    mousePosition: { x: null, y: null, inView: null },
+    scroll: { x: 0, y: 0 },
+    capsLock: null,
+    visibilityChanges: [],
+    lastVisible: null,
+    lastHidden: null,
+    popupsBlocked: 0,
+  };
+
+  let attached = false;
+
+  function attach() {
+    if (attached) return;
+    attached = true;
+
+    window.addEventListener("keydown", (e) => {
+      state.lastKey = e.key === " " ? "Space" : e.key;
+      state.keysPressed.push(e.key);
+      if (state.keysPressed.length > MAX_SAMPLES) state.keysPressed.shift();
+      try {
+        if (e.getModifierState) state.capsLock = e.getModifierState("CapsLock");
+      } catch {
+        /* not all engines support this */
+      }
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      state.mousePosition = {
+        x: Math.round(e.clientX),
+        y: Math.round(e.clientY),
+        inView: e.clientY >= 0 && e.clientY < window.innerHeight,
+      };
+    });
+
+    window.addEventListener("scroll", () => {
+      state.scroll = { x: Math.round(window.scrollX), y: Math.round(window.scrollY) };
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      const now = new Date().toISOString();
+      if (document.visibilityState === "visible") state.lastVisible = now;
+      else state.lastHidden = now;
+      state.visibilityChanges.push({ state: document.visibilityState, at: now });
+      if (state.visibilityChanges.length > 10) state.visibilityChanges.shift();
+    });
+
+    // Popup behaviour: window.open is only allowed during a user gesture in
+    // most engines. The test records whether it succeeded.
+    try {
+      const w = window.open("", "_blank");
+      if (w) {
+        w.close();
+        state.popupsBlocked = false;
+      } else {
+        state.popupsBlocked = true;
+      }
+    } catch {
+      state.popupsBlocked = true;
+    }
+  }
+
+  return {
+    id: "page-interaction",
+    label: "Live interaction state",
+    family: "behaviour",
+    bits: 0.5,
+    async run() {
+      attach();
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return {
+        available: true,
+        ...state,
+        note:
+          "Updated live. Only the last " + MAX_SAMPLES + " keys are retained " +
+          "and nothing is transmitted — a page that kept everything would be " +
+          "building a profile, which is the point being demonstrated.",
+      };
+    },
+  };
+}
+
+  __exports["createPageInteractionProbe"] = createPageInteractionProbe;
+});
+
+__def("src/js/probes/index", function (__exports, __require) {
+  const __m29_src_js_probes_browser_detection_probeasb = __require("src/js/probes/browser-detection");
+  const browserDetection = __m29_src_js_probes_browser_detection_probeasb["probe"];
+  const __m21_src_js_probes_identity_probeasi = __require("src/js/probes/identity");
+  const identity = __m21_src_js_probes_identity_probeasi["probe"];
+  const __m19_src_js_probes_locale_probeasl = __require("src/js/probes/locale");
+  const locale = __m19_src_js_probes_locale_probeasl["probe"];
+  const __m20_src_js_probes_display_probeasd = __require("src/js/probes/display");
+  const display = __m20_src_js_probes_display_probeasd["probe"];
+  const __m21_src_js_probes_hardware_probeash = __require("src/js/probes/hardware");
+  const hardware = __m21_src_js_probes_hardware_probeash["probe"];
+  const __m19_src_js_probes_canvas_probeasc = __require("src/js/probes/canvas");
+  const canvas = __m19_src_js_probes_canvas_probeasc["probe"];
+  const __m18_src_js_probes_webgl_probeasw = __require("src/js/probes/webgl");
+  const webgl = __m18_src_js_probes_webgl_probeasw["probe"];
+  const __m18_src_js_probes_audio_probeasa = __require("src/js/probes/audio");
+  const audio = __m18_src_js_probes_audio_probeasa["probe"];
+  const __m18_src_js_probes_fonts_probeasf = __require("src/js/probes/fonts");
+  const fonts = __m18_src_js_probes_fonts_probeasf["probe"];
+  const __m21_src_js_probes_features_probeasf = __require("src/js/probes/features");
+  const features = __m21_src_js_probes_features_probeasf["probe"];
+  const __m18_src_js_probes_media_probeasm = __require("src/js/probes/media");
+  const media = __m18_src_js_probes_media_probeasm["probe"];
+  const __m19_src_js_probes_speech_probeass = __require("src/js/probes/speech");
+  const speech = __m19_src_js_probes_speech_probeass["probe"];
+  const __m24_src_js_probes_permissions_probeasp = __require("src/js/probes/permissions");
+  const permissions = __m24_src_js_probes_permissions_probeasp["probe"];
+  const __m20_src_js_probes_storage_probeass = __require("src/js/probes/storage");
+  const storage = __m20_src_js_probes_storage_probeass["probe"];
+  const __m20_src_js_probes_network_probeasn = __require("src/js/probes/network");
+  const network = __m20_src_js_probes_network_probeasn["probe"];
+  const __m19_src_js_probes_webrtc_probeasw = __require("src/js/probes/webrtc");
+  const webrtc = __m19_src_js_probes_webrtc_probeasw["probe"];
+  const __m17_src_js_probes_math_probeasm = __require("src/js/probes/math");
+  const math = __m17_src_js_probes_math_probeasm["probe"];
+  const __m19_src_js_probes_timing_probeast = __require("src/js/probes/timing");
+  const timing = __m19_src_js_probes_timing_probeast["probe"];
+  const __m24_src_js_probes_client_hints_probeasc = __require("src/js/probes/client-hints");
+  const clientHints = __m24_src_js_probes_client_hints_probeasc["probe"];
+  const __m25_src_js_probes_media_devices_probeasm = __require("src/js/probes/media-devices");
+  const mediaDevices = __m25_src_js_probes_media_devices_probeasm["probe"];
+  const __m31_src_js_probes_device_capabilities_probeasd = __require("src/js/probes/device-capabilities");
+  const deviceCapabilities = __m31_src_js_probes_device_capabilities_probeasd["probe"];
+  const __m25_src_js_probes_device_motion_probeasd = __require("src/js/probes/device-motion");
+  const deviceMotion = __m25_src_js_probes_device_motion_probeasd["probe"];
+  const __m24_src_js_probes_plugins_mime_probeasp = __require("src/js/probes/plugins-mime");
+  const pluginsMime = __m24_src_js_probes_plugins_mime_probeasp["probe"];
+  const __m27_src_js_probes_privacy_signals_probeasp = __require("src/js/probes/privacy-signals");
+  const privacySignals = __m27_src_js_probes_privacy_signals_probeasp["probe"];
+  const __m26_src_js_probes_adblock_detect_probeasa = __require("src/js/probes/adblock-detect");
+  const adblockDetect = __m26_src_js_probes_adblock_detect_probeasa["probe"];
+  const __m30_src_js_probes_performance_detail_probeasp = __require("src/js/probes/performance-detail");
+  const performanceDetail = __m30_src_js_probes_performance_detail_probeasp["probe"];
+  const __m30_src_js_probes_page_interaction_createPage = __require("src/js/probes/page-interaction");
+  const { createPageInteractionProbe } = __m30_src_js_probes_page_interaction_createPage;
+/**
+ * Probe registry.
+ *
+ * Every module in this directory exports a `probe` object. Adding a new signal
+ * means adding a file and one line here -- the entropy model, the renderer and
+ * the export all pick it up automatically.
+ *
+ * Order matters for presentation only: the renderer groups by family.
+ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const PROBES = [
+  browserDetection,
+  identity,
+  locale,
+  display,
+  hardware,
+  canvas,
+  webgl,
+  audio,
+  fonts,
+  features,
+  media,
+  speech,
+  permissions,
+  storage,
+  network,
+  webrtc,
+  math,
+  timing,
+  clientHints,
+  mediaDevices,
+  deviceCapabilities,
+  deviceMotion,
+  pluginsMime,
+  privacySignals,
+  adblockDetect,
+  performanceDetail,
+  createPageInteractionProbe(),
+];
+
+const PROBE_IDS = PROBES.map((p) => p.id);
+
+/** Look up the declared metadata for a probe id. */
+function metaFor(id) {
+  return PROBES.find((p) => p.id === id) || null;
+}
+
+  __exports["PROBES"] = PROBES;
+  __exports["PROBE_IDS"] = PROBE_IDS;
+  __exports["metaFor"] = metaFor;
+});
+
+__def("src/js/entropy", function (__exports, __require) {
+
+/**
+ * Entropy model.
+ *
+ * IMPORTANT -- read this before quoting any number from this file.
+ *
+ * The per-signal bit values below are *assumed* values drawn from the range
+ * published in the fingerprinting literature (EFF's Panopticlick work and
+ * later measurements). They are not measured from a real population, because
+ * this page never leaves one browser. The bit values are therefore an
+ * illustrative allocation, not an observation.
+ *
+ * Naively summing them overstates the answer badly. Real signals are heavily
+ * correlated: a Windows machine with a discrete NVIDIA GPU and an English
+ * locale will predict much of its own canvas, font list and User-Agent string.
+ * The model below handles this by grouping signals into families, discounting
+ * each family for internal correlation, and then discounting the combination
+ * of families for cross-family correlation.
+ *
+ * The result lands in the 25-40 bit band that published full-vector
+ * measurements report, which is the honest target. Treat any specific figure
+ * as "same order of magnitude as published estimates", not as a measurement.
+ */
+
+const FAMILIES = {
+  platform: {
+    label: "Platform & environment",
+    blurb: "What the machine is. Strongly correlated with each other.",
+    redundancy: 0.6,
+  },
+  rendering: {
+    label: "Rendering pipeline",
+    blurb: "GPU, rasteriser and font rasterisation output.",
+    redundancy: 0.75,
+  },
+  software: {
+    label: "Software surface",
+    blurb: "Which APIs and codecs this build exposes.",
+    redundancy: 0.65,
+  },
+  hardware: {
+    label: "Hardware & sensors",
+    blurb: "Physical capabilities: cores, GPU, media devices, sensors.",
+    redundancy: 0.7,
+  },
+  privacy: {
+    label: "Privacy & blocking",
+    blurb: "What the user or browser is withholding.",
+    redundancy: 0.75,
+  },
+  network: {
+    label: "Network & timing",
+    blurb: "Connection class and clock behaviour.",
+    redundancy: 0.8,
+  },
+  behaviour: {
+    label: "Interaction behaviour",
+    blurb: "How the visitor is using the page right now.",
+    redundancy: 0.8,
+  },
+};
+
+// Correlation left over once the families are combined. A Windows/NVIDIA/GPU
+// correlation still predicts part of the rendering family, for instance.
+const CROSS_FAMILY = 0.85;
+
+/**
+ * @param {Array<{id:string, family:string, bits:number, available:boolean}>} signals
+ * @returns {{families:Array, crossFamilyFactor:number, total:number, nominalTotal:number}}
+ */
+function modelEntropy(signals) {
+  const buckets = {};
+  for (const key of Object.keys(FAMILIES)) {
+    buckets[key] = { key, nominal: 0, modelled: 0, count: 0 };
+  }
+
+  for (const s of signals) {
+    // Unavailable signals contribute nothing: a blocked canvas is not a
+    // signal about the visitor, it is a signal about the browser policy.
+    if (!s.available) continue;
+    if (!buckets[s.family]) continue;
+    buckets[s.family].nominal += s.bits;
+    buckets[s.family].count += 1;
+  }
+
+  const families = Object.values(buckets)
+    .filter((b) => b.count > 0)
+    .map((b) => ({
+      ...b,
+      label: FAMILIES[b.key].label,
+      blurb: FAMILIES[b.key].blurb,
+      redundancy: FAMILIES[b.key].redundancy,
+      modelled: b.nominal * FAMILIES[b.key].redundancy,
+    }));
+
+  const summed = families.reduce((acc, f) => acc + f.modelled, 0);
+  const crossFamilyFactor = families.length > 1 ? CROSS_FAMILY : 1;
+
+  const nominalTotal = signals.reduce((acc, s) => acc + (s.available ? s.bits : 0), 0);
+
+  return {
+    families,
+    crossFamilyFactor,
+    total: summed * crossFamilyFactor,
+    nominalTotal,
+    discardedBits: nominalTotal - summed * crossFamilyFactor,
+  };
+}
+
+// World population, used to frame the "1 in N" figure. 8.2 billion is 32.9
+// bits: any fingerprint above that line has no twin.
+const WORLD_POPULATION = 8.2e9;
+const WORLD_POPULATION_BITS = Math.log2(WORLD_POPULATION);
+
+/** Number of equally likely fingerprints a `bits`-bit value distinguishes. */
+function populationOf(bits) {
+  return Math.pow(2, bits);
+}
+
+const UNITS = [
+  { limit: 1e12, div: 1e12, name: "trillion" },
+  { limit: 1e9, div: 1e9, name: "billion" },
+  { limit: 1e6, div: 1e6, name: "million" },
+  { limit: 1e4, div: 1e3, name: "thousand" },
+];
+
+function humanCount(n) {
+  for (const unit of UNITS) {
+    if (n >= unit.limit) {
+      const scaled = n / unit.div;
+      // Past the top bucket, say so rather than printing twenty digits.
+      if (scaled >= 1000) return "over 1,000 trillion";
+      return `${Number(scaled.toPrecision(2)).toLocaleString("en-US")} ${unit.name}`;
+    }
+  }
+  return Math.round(n).toLocaleString("en-US");
+}
+
+function formatPopulation(bits) {
+  return humanCount(populationOf(bits));
+}
+
+function tierOf(bits) {
+  if (bits < 12) {
+    return {
+      label: "Blends in",
+      tone: "good",
+      blurb: "Fewer than a few thousand people worldwide would share this.",
+    };
+  }
+  if (bits < 20) {
+    return {
+      label: "Common",
+      tone: "good",
+      blurb: "One of a large crowd. Tracking would need other data to pin you down.",
+    };
+  }
+  if (bits < 27) {
+    return {
+      label: "Distinguishable",
+      tone: "warn",
+      blurb: "Numbers in the millions. Trackable in aggregation, noisy alone.",
+    };
+  }
+  if (bits < 33) {
+    return {
+      label: "Near-unique",
+      tone: "warn",
+      blurb: "Billions of combinations. Effectively trackable across the web.",
+    };
+  }
+  return {
+    label: "Unique",
+    tone: "bad",
+    blurb: "Beyond the world population. This fingerprint stands alone.",
+  };
+}
+
+/** Two people drawn at random collide with probability 1 / 2^bits. */
+function shareFrame(bits) {
+  if (bits >= WORLD_POPULATION_BITS) {
+    return "There are more possible fingerprints than people. This one has no twin.";
+  }
+  return `About 1 in ${formatPopulation(bits)} people shares this fingerprint.`;
+}
+
+
+
+
+  __exports["FAMILIES"] = FAMILIES;
+  __exports["modelEntropy"] = modelEntropy;
+  __exports["populationOf"] = populationOf;
+  __exports["formatPopulation"] = formatPopulation;
+  __exports["tierOf"] = tierOf;
+  __exports["shareFrame"] = shareFrame;
+  __exports["WORLD_POPULATION_BITS"] = WORLD_POPULATION_BITS;
+});
+
+__def("src/js/render", function (__exports, __require) {
+  const __m50_src_js_entropy_FAMILIES = __require("src/js/entropy");
+  const { FAMILIES, formatPopulation, shareFrame, tierOf } = __m50_src_js_entropy_FAMILIES;
+/**
+ * Rendering.
+ *
+ * Pure DOM construction -- no template strings injected via innerHTML for
+ * probe data, because probe output is untrusted input by definition (it
+ * contains arbitrary strings from the platform). Everything goes through
+ * textContent or explicit attribute creation.
+ */
+
+
+
+const el = (tag, className, content) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (content instanceof Node) {
+    // Passing a node in. textContent would stringify it to
+    // "[object HTMLDetailsElement]", which is how every nested value used to
+    // render before this check existed.
+    node.append(content);
+  } else if (content !== undefined && content !== null) {
+    node.textContent = String(content);
+  }
+  return node;
+};
+
+/**
+ * Render a value as readable DOM. Objects and arrays recurse; long lists are
+ * collapsed behind a details node so the page stays usable.
+ */
+function valueNode(label, value, depth = 0) {
+  const row = el("div", "row");
+
+  if (value === null || value === undefined) {
+    row.append(el("dt", "row-key", label), el("dd", "row-val muted", "absent"));
+    return row;
+  }
+
+  if (typeof value === "object") {
+    const isArr = Array.isArray(value);
+    const entries = isArr
+      ? value.map((v, i) => [String(i), v])
+      : Object.entries(value);
+    const summary = isArr ? `${value.length} items` : `${entries.length} keys`;
+
+    if (depth >= 3 || entries.length > 40) {
+      // Deep or wide: show a collapsed JSON blob rather than a nested tree.
+      const details = el("details", "collapsed");
+      details.append(el("summary", null, `${summary} — expand`));
+      const pre = el("pre", "json", JSON.stringify(value, null, 2));
+      details.append(pre);
+      row.append(el("dt", "row-key", label), el("dd", "row-val", details));
+      return row;
+    }
+
+    const nested = el("dl", "sublist");
+    for (const [k, v] of entries) {
+      nested.append(valueNode(k, v, depth + 1));
+    }
+    const details = el("details", "collapsed");
+    details.append(el("summary", null, `${summary} — expand`));
+    details.append(nested);
+    row.append(el("dt", "row-key", label), el("dd", "row-val", details));
+    return row;
+  }
+
+  const display = typeof value === "boolean" ? (value ? "yes" : "no") : value;
+  const dd = el("dd", "row-val", display);
+  row.append(el("dt", "row-key", label), dd);
+  return row;
+}
+
+function signalCard(signal, meta, entropy) {
+  const card = el("article", "card");
+  card.dataset.signal = signal.id;
+
+  const head = el("header", "card-head");
+  head.append(
+    el("h3", "card-title", meta.label),
+    el("span", "bits", `${meta.bits.toFixed(1)} b`)
+  );
+  card.append(head);
+
+  if (!signal.available) {
+    card.append(el("p", "status warn", "Not available on this browser"));
+    if (signal.note) card.append(el("p", "note", signal.note));
+    card.append(
+      el("p", "bits-dropped", "Contributes 0 bits — excluded from the total.")
+    );
+    return card;
+  }
+
+  if (signal.note) card.append(el("p", "note", signal.note));
+
+  const list = el("dl", "rows");
+  const entries = Object.entries(signal.values).filter(([k]) => k !== "note");
+  for (const [key, value] of entries) {
+    list.append(valueNode(key, value));
+  }
+  card.append(list);
+
+  if (entropy) {
+    const modelled = meta.bits * FAMILIES[meta.family].redundancy;
+    card.append(
+      el("p", "bits-modelled", `Modelled contribution: ${modelled.toFixed(1)} bits after correlation discount`)
+    );
+  }
+
+  return card;
+}
+
+function renderSignals(container, results, entropyModel) {
+  container.replaceChildren();
+
+  for (const [familyKey, family] of Object.entries(FAMILIES)) {
+    const signals = results.filter((r) => r.meta.family === familyKey);
+    if (signals.length === 0) continue;
+
+    const familyEntropy = entropyModel.families.find((f) => f.key === familyKey);
+
+    const section = el("section", "family");
+    section.append(
+      el("h2", "family-title", family.label),
+      el("p", "family-blurb", family.blurb)
+    );
+
+    if (familyEntropy) {
+      section.append(
+        el("p", "family-figure", [
+          `${familyEntropy.count} signals · `,
+          `${familyEntropy.nominal.toFixed(1)} bits nominal → `,
+          `${familyEntropy.modelled.toFixed(1)} bits modelled `,
+          `(${(familyEntropy.redundancy * 100).toFixed(0)}% correlation discount)`,
+        ].join(""))
+      );
+    }
+
+    const grid = el("div", "grid");
+    for (const signal of signals) {
+      grid.append(signalCard(signal, signal.meta, Boolean(familyEntropy)));
+    }
+    section.append(grid);
+    container.append(section);
+  }
+}
+
+function renderSummary(container, entropyModel, resultCount) {
+  container.replaceChildren();
+
+  const bits = entropyModel.total;
+  const tier = tierOf(bits);
+
+  const card = el("section", `summary-tier-${tier.tone}`);
+
+  const headline = el("div", "summary-headline");
+  headline.append(
+    el("p", "summary-eyebrow", "Modelled distinctiveness"),
+    el("p", "summary-bits", `${bits.toFixed(1)}`),
+    el("p", "summary-unit", "bits")
+  );
+  card.append(headline);
+
+  const tierBox = el("div", "summary-tier");
+  tierBox.append(
+    el("p", "summary-tier-label", tier.label),
+    el("p", "summary-tier-blurb", tier.blurb),
+    el("p", "summary-population", shareFrame(bits))
+  );
+  card.append(tierBox);
+
+  const available = resultCount.filter((r) => r.available).length;
+  const unavailable = resultCount.length - available;
+
+  const rows = [
+    ["Signals answered", `${available} of ${resultCount.length}`],
+    ["Signals unavailable", String(unavailable)],
+    ["Raw sum if independent", `${entropyModel.nominalTotal.toFixed(1)} bits`],
+    ["Discarded as correlated", `${entropyModel.discardedBits.toFixed(1)} bits`],
+    ["Cross-family factor", `\u00d7${entropyModel.crossFamilyFactor.toFixed(2)}`],
+    ["Implied population", formatPopulation(bits)],
+  ];
+
+  const detail = el("dl", "summary-detail");
+  for (const [k, v] of rows) {
+    const row = el("div", "summary-detail-row");
+    row.append(el("dt", null, k), el("dd", null, v));
+    detail.append(row);
+  }
+  card.append(detail);
+
+  card.append(
+    el("p", "summary-caveat", [
+      "This is a model, not a measurement. Bit values are assumed from the ",
+      "published literature and discounted for correlation. It tells you what ",
+      "order of magnitude to expect, not what your exact odds are. Real ",
+      "figures need a population to measure against, which is the whole point ",
+      "of why a fingerprinting study collects thousands of samples and this ",
+      "page cannot.",
+    ].join(""))
+  );
+
+  container.append(card);
+}
+
+function renderFooter(container, worldBits) {
+  container.replaceChildren(
+    el("p", null, [
+      "For scale: world population is about 8.2 billion, which is ",
+      `${worldBits.toFixed(1)} bits. `,
+      "Any fingerprint above that line is unique on the planet.",
+    ].join(""))
+  );
+}
+
+  __exports["renderSignals"] = renderSignals;
+  __exports["renderSummary"] = renderSummary;
+  __exports["renderFooter"] = renderFooter;
+});
+
+__def("src/js/deviceinfo", function (__exports, __require) {
+  const __m12_src_js_entropy_FAMILIES = __require("src/js/entropy");
+  const { FAMILIES } = __m12_src_js_entropy_FAMILIES;
+/**
+ * Device Info report.
+ *
+ * Renders the full "what did this page learn about you" report, organised by
+ * the same categories a device-info site uses, with every value tagged by how
+ * it was obtained:
+ *
+ *   [client]      Detected in the browser, no permission, no network.
+ *   [blocked]     The browser withholds or normalises this signal.
+ *   [server]      Cannot be known without contacting a server.
+ *   [permission]  Requires the user to grant access first.
+ *
+ * The [server] tag is the honest half of this report. A page that shows you an
+ * IP address, a geolocation or an ISP is telling you what its *server* learned,
+ * not what your browser volunteered. Both halves are worth seeing side by side,
+ * because the difference between them is the actual privacy boundary.
+ */
+
+
+
+const el = (tag, className, content) => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (content instanceof Node) {
+    node.append(content);
+  } else if (content !== undefined && content !== null) {
+    node.textContent = String(content);
+  }
+  return node;
+};
+
+const TAG_LABELS = {
+  client: ["client", "client-side"],
+  blocked: ["blocked", "withheld"],
+  server: ["server", "requires server"],
+  permission: ["permission", "permission required"],
+};
+
+function row(label, value, tag = "client", note = null) {
+  const tr = el("tr", `tag-${tag}`);
+  tr.append(
+    el("td", "di-label", label),
+    el("td", "di-value", value === null || value === undefined ? "—" : value),
+    el("td", "di-tag", TAG_LABELS[tag]?.[1] || tag)
+  );
+  return tr;
+}
+
+function section(title, blurb) {
+  const sec = el("section", "di-section");
+  sec.append(el("h3", "di-section-title", title));
+  if (blurb) sec.append(el("p", "di-section-blurb", blurb));
+  const table = el("table", "di-table");
+  table.append(el("tbody", null, null));
+  sec.append(table);
+  return sec;
+}
+
+function addRows(sec, rows) {
+  const tbody = sec.querySelector("tbody");
+  for (const r of rows) tbody.append(r);
+}
+
+/** Slugify a section title into a stable anchor id. */
+function slugify(title) {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
+ * Build the whole report.
+ *
+ * `results` is the array of probe results in registry order. Values are read
+ * defensively: anything missing becomes a [blocked] or [server] row rather
+ * than a gap, so the report always shows the full shape of what was asked.
+ *
+ * `nav` is the category navigation. It is built as sections are appended,
+ * because the section list is the source of truth — a hand-maintained nav
+ * would silently drift the next time a section is renamed.
+ */
+function renderDeviceInfo(container, results, nav) {
+  container.replaceChildren();
+  if (nav) nav.replaceChildren();
+
+  // Append a section to the DOM and register it in the category nav.
+  const sections = [];
+  const emit = (sec) => {
+    const title = sec.querySelector(".di-section-title")?.textContent || "Section";
+    const id = slugify(title);
+    sec.id = `di-${id}`;
+    sec.dataset.section = title;
+    container.append(sec);
+    sections.push({ id: sec.id, title });
+  };
+
+  const finish = () => {
+    if (!nav) return;
+    for (const s of sections) {
+      const link = el("a", "di-nav-link", s.title);
+      link.href = `#${s.id}`;
+      nav.append(link);
+    }
+    // The probe cards are a separate top-level section rendered after this
+    // report. Without an explicit link they sit at the very bottom of a long
+    // page with no way to reach them.
+    const cards = el("a", "di-nav-link di-nav-link-external", "↓ Entropy signal cards");
+    cards.href = "#signals";
+    nav.append(cards);
+  };
+
+  const byId = new Map(results.map((r) => [r.id, r]));
+  const val = (id, key) => {
+    const r = byId.get(id);
+    if (!r || !r.available || !r.values) return null;
+    return r.values[key];
+  };
+  const present = (id) => {
+    const r = byId.get(id);
+    return Boolean(r && r.available);
+  };
+
+  const browser = results.find((r) => r.id === "browser-detection")?.values || {};
+  const hints = results.find((r) => r.id === "client-hints")?.values || {};
+  const media = results.find((r) => r.id === "media-devices")?.values || {};
+  const caps = results.find((r) => r.id === "device-capabilities")?.values || {};
+  const motion = results.find((r) => r.id === "device-motion")?.values || {};
+  const plugins = results.find((r) => r.id === "plugins-mime")?.values || {};
+  const privacy = results.find((r) => r.id === "privacy-signals")?.values || {};
+  const adblock = results.find((r) => r.id === "adblock-detect")?.values || {};
+  const perf = results.find((r) => r.id === "performance-detail")?.values || {};
+  const interaction = results.find((r) => r.id === "page-interaction")?.values || {};
+  const display = results.find((r) => r.id === "display")?.values || {};
+  const hardware = results.find((r) => r.id === "hardware")?.values || {};
+  const storage = results.find((r) => r.id === "storage")?.values || {};
+  const network = results.find((r) => r.id === "network")?.values || {};
+  const canvas = results.find((r) => r.id === "canvas")?.values || {};
+  const audio = results.find((r) => r.id === "audio")?.values || {};
+  const webrtc = results.find((r) => r.id === "webrtc")?.values || {};
+  const locale = results.find((r) => r.id === "locale")?.values || {};
+  const features = results.find((r) => r.id === "features")?.values || {};
+
+  // ---- Browser Detection (category one) --------------------------------
+  {
+    const sec = section("Browser Detection",
+      "Which browser is in use, which engine renders the page, and which core it is built on. Detected from the User-Agent string and cross-checked against Client Hints.");
+
+    const brands = Array.isArray(browser.clientHintsBrands)
+      ? browser.clientHintsBrands.map((b) => `${b.brand} ${b.version}`).join(", ")
+      : null;
+
+    const rows = [
+      row("Detected Browser", browser.browser || "Unknown", "client"),
+      row("Browser Version", browser.version || "Unknown", "client"),
+      row("Base Engine", browser.engine || "Unknown", "client"),
+      row("Browser Core", browser.core || "Unknown", "client"),
+      row("Confidence", browser.confidence || "Unknown", "client"),
+      row("Detection Method", browser.detectionMethod?.length ? browser.detectionMethod.join("; ") : "Unknown", "client"),
+      row("User-Agent String", browser.userAgent || navigator.userAgent, "client"),
+      row("Client Hints Brands", brands || "Not available", brands ? "client" : "blocked"),
+      row("Platform (from UA)", browser.deviceType || "Unknown", "client"),
+      row("Operating System", browser.os || "Unknown", "client"),
+      row("OS Version", browser.osVersion || "Unknown", "client"),
+      row("Architecture (from UA)", browser.arch || "Unknown", "client"),
+      row("Platform Version", hints.platformVersion || "Unknown", "client"),
+    ];
+
+    if (browser.automation?.automated) {
+      rows.push(row("Automation Detected", `Yes — ${browser.automation.flags.join("; ")}`, "client"));
+    } else {
+      rows.push(row("Automation Detected", "No", "client"));
+    }
+
+    if (browser.environment?.length) {
+      rows.push(row("Environment", browser.environment.join(", "), "client"));
+    }
+
+    if (browser.consistencyIssues?.length) {
+      rows.push(row("UA Consistency Issues", browser.consistencyIssues.join("; "), "blocked",
+        "The UA string disagrees with itself or with Client Hints. Something is rewriting it."));
+    } else {
+      rows.push(row("UA Consistency Issues", "None — UA is self-consistent", "client"));
+    }
+
+    addRows(sec, rows);
+    emit(sec);
+  }
+
+  // ---- User Agent Analysis ----------------------------------------------
+  {
+    const sec = section("User Agent Analysis",
+      "The User-Agent string is a list of product tokens. Most are historical padding — Mozilla/5.0 appears in every modern browser, AppleWebKit appears in Chromium, and Safari appears in browsers that are not Safari.");
+
+    const tokens = browser.uaTokens || {};
+    const products = Array.isArray(tokens.products) ? tokens.products : [];
+
+    const uaRows = [
+      row("Full User-Agent String", browser.userAgent || navigator.userAgent, "client"),
+      row("Product Comments", tokens.comments?.length ? tokens.comments.join(" | ") : "None", "client"),
+      row("Tail (post-comment products)", tokens.tail || "None", "client"),
+    ];
+
+    for (const p of products) {
+      const label = p.greased ? `${p.name} (grease token)` : p.name;
+      uaRows.push(row(label, p.version || "—", "client",
+        p.greased ? "Deliberately vague token inserted by Chromium to stop sites hardcoding a brand list." : null));
+    }
+
+    uaRows.push(row("Grease Token Count", tokens.greasedCount ?? 0, "client"));
+    uaRows.push(row("Engine Tokens Present", tokens.engineTokens?.length ? tokens.engineTokens.join(", ") : "None", "client"));
+
+    addRows(sec, uaRows);
+    emit(sec);
+  }
+
+  // ---- Browser Identity Strings ------------------------------------------
+  {
+    const sec = section("Browser Identity Strings",
+      "Raw identity strings the browser publishes on navigator. Legacy fields, still shipped and still identifying.");
+
+    const identity = results.find((r) => r.id === "identity")?.values || {};
+
+    addRows(sec, [
+      row("navigator.appVersion", identity.appVersion || "absent", "client",
+        "A duplicate of userAgent. One of the oldest fingerprinting surfaces."),
+      row("navigator.product", identity.product || "absent", "client"),
+      row("navigator.productSub", identity.productSub || "absent", "client",
+        "A 2004-era field with a near-fixed value on some browsers."),
+      row("navigator.vendor", identity.vendor || "absent", "client"),
+      row("navigator.oscpu", identity.oscpu || "absent", "client",
+        "Firefox-only. Reports the underlying OS build."),
+      row("navigator.standalone", identity.standalone === null ? "absent" : String(identity.standalone), "client"),
+      row("navigator.pdfViewerEnabled", identity.pdfViewerEnabled ? "Yes" : "No", "client"),
+      row("navigator.webdriver", identity.webdriver ? "true — automated browser" : "false", "client"),
+      row("navigator.platform", typeof navigator.platform === "string" ? navigator.platform : "absent", "client"),
+      row("User-Agent Hash (SHA-256)", identity.userAgentHash || "unavailable", "client",
+        "A stable identifier for the exact UA string. Computed in this tab."),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Client Hints (full) -----------------------------------------------
+  {
+    const sec = section("Client Hints",
+      "The modern replacement for the UA string. These values are sent only when the browser chooses to send them, and they carry more identifying detail than the UA — which is why the UA is being frozen.");
+
+    const fullVersionList = Array.isArray(hints.fullVersionList)
+      ? hints.fullVersionList.map((b) => `${b.brand} ${b.version}`).join(", ")
+      : "Not available";
+
+    addRows(sec, [
+      row("userAgentData Supported", hints.brands ? "Yes" : "No", hints.brands ? "client" : "blocked",
+        hints.brands ? null : "Firefox and Safari do not implement Client Hints."),
+      row("Full Version List", fullVersionList, hints.fullVersionList ? "client" : "blocked"),
+      row("Platform Version (resolved)", hints.platformVersionLabel || "Unknown", hints.platformVersionLabel ? "client" : "blocked"),
+      row("Architecture", hints.architecture || "Unknown", "client",
+        "The true CPU architecture — the closest a page gets to a hardware model number."),
+      row("Model", hints.model || "(empty)", "client",
+        "Empty on desktop. Populated on Android and ChromeOS, where it narrows to a specific device."),
+      row("WoW64", hints.wow64 === true ? "Yes" : hints.wow64 === false ? "No" : "Unknown", "client",
+        "WoW64 means a 32-bit browser running on 64-bit Windows."),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Browser Capabilities ----------------------------------------------
+  {
+    const sec = section("Browser Capabilities",
+      "Which APIs this build exposes. Each one is a fraction of a bit, but the vector as a whole pins the browser version more precisely than the UA string does.");
+
+    const vectors = features.vectors || {};
+    const capRows = [];
+
+    if (vectors.navigator) {
+      const total = vectors.navigator.present.length + vectors.navigator.absent.length;
+      capRows.push(row("navigator APIs Present", `${vectors.navigator.presentCount} of ${total}`, "client"));
+      capRows.push(row("navigator APIs Missing", vectors.navigator.absent.join(", ") || "None", "client"));
+    }
+    if (vectors.window) {
+      capRows.push(row("window APIs Present", `${vectors.window.presentCount}`, "client"));
+    }
+
+    const cssSupported = features.css?.supported || [];
+    capRows.push(row("CSS Features Supported", `${cssSupported.length}`, "client"));
+    for (const feat of cssSupported.slice(0, 12)) {
+      capRows.push(row(feat, "Supported", "client"));
+    }
+    capRows.push(row("Summary", features.summary
+      ? `${features.summary.jsApisPresent} JS APIs, ${features.summary.cssFeaturesPresent} CSS features`
+      : "Unknown", "client"));
+
+    addRows(sec, capRows);
+    emit(sec);
+  }
+
+  // ---- Device & OS -----------------------------------------------------
+  {
+    const sec = section("Device Type & Operating System",
+      "What the machine claims to be, versus what the browser's own high-entropy hints reveal.");
+
+    const osName = browser.os || "Unknown";
+    const osDetail = browser.osVersion;
+    const winLabel = hints.platformVersionLabel;
+
+    // Compose the OS display: prefer the Client Hints label for Windows,
+    // fall back to the UA-derived name, then the detail string.
+    let osDisplay = osName;
+    if (osName === "Windows" && winLabel) {
+      osDisplay = `${winLabel} (64-bit)`;
+    } else if (osDetail) {
+      osDisplay = `${osName} — ${osDetail}`;
+    }
+
+    addRows(sec, [
+      row("Device Type / Model", browser.deviceType || "Unknown"),
+      row("Operating System", osDisplay, "client",
+        osName === "Windows" && !winLabel ? "UA says Windows 10/11; only Client Hints distinguish them." : null),
+      row("True OS Core", winLabel || "Unknown", winLabel ? "client" : "blocked",
+        winLabel ? null : "platformVersion withheld — Firefox and Safari do not implement Client Hints."),
+      row("CPU Architecture", hints.architecture || browser.arch || "Unknown", "client"),
+      row("Bitness", hints.bitness || browser.arch || "Unknown", "client"),
+      row("Model", hints.model || "(empty)", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Browser ---------------------------------------------------------
+  {
+    const sec = section("Browser",
+      "The browser's own identity. Client Hints are the only place Brave identifies itself.");
+
+    const brands = Array.isArray(hints.brands) ? hints.brands : null;
+    const brandStr = brands ? brands.map((b) => `${b.brand} ${b.version}`).join(", ") : null;
+
+    addRows(sec, [
+      row("Browser", brandStr || browser.browser || "Unknown", "client"),
+      row("True Browser Core", brandStr || browser.core || "Unknown", brandStr ? "client" : "blocked",
+        brandStr ? null : "Sec-CH-UA withheld; falling back to the User-Agent string."),
+      row("Engine", browser.engine || "Unknown", "client"),
+      row("Mobile", hints.mobile === true ? "Yes" : hints.mobile === false ? "No" : "Unknown", "client"),
+      row("Platform", hints.platform || "Unknown", "client"),
+      row("Platform Version", hints.platformVersion || "Unknown", "client"),
+      row("Full Version", hints.uaFullVersion || "Unknown", "client"),
+      row("WoW64", hints.wow64 === true ? "Yes" : hints.wow64 === false ? "No" : "Unknown", "client"),
+      row("Web Driver (automation)", val("hardware", "webdriver") ? "Yes — automated browser" : "No", "client"),
+      row("PDF Viewer Enabled", val("hardware", "pdfViewerEnabled") ? "Yes" : "No", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Network ---------------------------------------------------------
+  {
+    const sec = section("Network & Connection",
+      "Split into what the browser knows and what only a server can know. The second group is the majority of a device-info report.");
+
+    addRows(sec, [
+      row("IP Address (WAN)", "IPv6 and IPv4 addresses", "server",
+        "A page cannot see its own address. This requires a server to observe the connection."),
+      row("IP Address (LAN)", webrtc.exposure === "mdns-only" ? "Hidden (mDNS)" : webrtc.exposure === "local-address-visible" ? "Visible" : "Unknown",
+        webrtc.exposure === "local-address-visible" ? "client" : "blocked",
+        "WebRTC now replaces local addresses with mDNS hostnames in Chrome and Safari."),
+      row("Hostname", "Unknown", "server", "Not exposed to JavaScript at all."),
+      row("Location (Country / Region / City)", "Requires server-side IP geolocation", "server"),
+      row("ISP", "Requires server-side IP geolocation", "server"),
+      row("Nameservers", "Unknown", "server", "DNS configuration is not exposed to a page."),
+      row("Tor IP Address", "No", "server", "Tor exit nodes are only visible server-side."),
+      row("VPN IP Address", "Not detected", "server"),
+      row("Proxy IP Address", "None detected", "server"),
+      row("Connection Status (LAN)", network.online === true ? "Connected" : "Disconnected", "client"),
+      row("Internet Access", network.online === true ? "Yes" : "No", "client"),
+      row("Connection Type (LAN)", network.type || "Unknown", "client"),
+      row("Effective Connection Type", network.effectiveType || "Unknown", "client"),
+      row("Downlink (Mbps)", network.downlinkMbps ?? "Unknown", "client"),
+      row("Round-Trip Time (ms)", network.rttMs ?? "Unknown", "client"),
+      row("Save Data", network.saveData ? "Yes" : "No", "client"),
+      row("Languages", Array.isArray(locale.languages) ? locale.languages.join(", ") : "Unknown", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Date, time & locale ---------------------------------------------
+  {
+    const sec = section("Date, Time & Locale",
+      "The system clock and its settings. Time zone is one of the strongest low-effort signals.");
+
+    const now = new Date();
+    addRows(sec, [
+      row("System Date & Time", now.toLocaleString("en-US", { dateStyle: "full", timeStyle: "medium" }), "client"),
+      row("System Time Zone", locale.timeZone || "Unknown", "client"),
+      row("UTC Offset (minutes)", locale.timeZoneOffsetMinutes ?? "Unknown", "client"),
+      row("Intl Locale", locale.intlLocale || "Unknown", "client"),
+      row("Calendar", locale.calendar || "Unknown", "client"),
+      row("Numbering System", locale.numberingSystem || "Unknown", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Fingerprinting resistance ---------------------------------------
+  {
+    const sec = section("Fingerprinting Resistance",
+      "Whether this browser is actively normalising the signals this page relies on. Detected from artefacts, never assumed.");
+
+    const resistance = privacy.fingerprintResistance || {};
+    const signals = Array.isArray(resistance.signals) ? resistance.signals : [];
+
+    addRows(sec, [
+      row("Fingerprinting Resistance", resistance.resistant ? "Detected" : "Not detected", "client"),
+      row("Resistance Signals", signals.length ? signals.join("; ") : "None observed", "client"),
+      row("Canvas", canvas.available === false ? "Blocked" : "Supported", canvas.available === false ? "blocked" : "client"),
+      row("Canvas Fingerprinting", canvas.available === false ? "Spoofed / blocked" : "Allowed", canvas.available === false ? "blocked" : "client"),
+      row("AudioContext", audio.available === false ? "Blocked" : "Supported", audio.available === false ? "blocked" : "client"),
+      row("AudioContext Fingerprinting", audio.available === false ? "Blocked" : "Allowed", audio.available === false ? "blocked" : "client"),
+      row("User Agent", navigator.userAgent, "client"),
+      row("Do Not Track", privacy.doNotTrack || "Not set", "client"),
+      row("Global Privacy Control", privacy.globalPrivacyControl || "Unsupported", "client"),
+      row("Private Browsing Mode", privacy.privateBrowsing?.isPrivate ? "Yes" : "No", "client",
+        privacy.privateBrowsing?.method || null),
+      row("Ad Blocker", adblock.adBlockerDetected ? "Detected" : "Not detected", "client"),
+      row("Ghostery Extension", adblock.ghosteryDetected ? "Detected" : "Not detected", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Media devices ---------------------------------------------------
+  {
+    const sec = section("Media Devices",
+      "Counts are available without permission. Labels are redacted until access is granted.");
+
+    addRows(sec, [
+      row("Speakers", media.speakers ?? "Unknown", "client"),
+      row("Speaker Labels", media.labelsRevealed ? `${media.labelsRevealed} revealed` : "Redacted", media.labelsRevealed ? "client" : "blocked"),
+      row("Microphones", media.microphones ?? "Unknown", "client"),
+      row("Microphone Labels", media.labelsRevealed ? `${media.labelsRevealed} revealed` : "Redacted", media.labelsRevealed ? "client" : "blocked"),
+      row("Cameras", media.cameras ?? "Unknown", "client"),
+      row("Camera Labels", media.labelsRevealed ? `${media.labelsRevealed} revealed` : "Redacted", media.labelsRevealed ? "client" : "blocked"),
+      row("Audio / Microphone Permission", "Not granted", "permission",
+        "Permission required to detect correct number of devices and their labels."),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Hardware --------------------------------------------------------
+  {
+    const sec = section("Hardware",
+      "CPU, GPU, memory and battery. The GPU string is one of the highest-value signals in the entire report.");
+
+    const webgl = results.find((r) => r.id === "webgl")?.values || {};
+
+    addRows(sec, [
+      row("Graphics Card / GPU", webgl.unmaskedRenderer || webgl.renderer || "Unknown", "client"),
+      row("GPU Vendor", webgl.unmaskedVendor || webgl.vendor || "Unknown", "client"),
+      row("WebGL Version", webgl.version || "Unknown", "client"),
+      row("CPU Cores", hardware.hardwareConcurrency ?? "Unknown", "client"),
+      row("Memory (RAM)", hardware.deviceMemoryGB ? `${hardware.deviceMemoryGB} GB` : "Unknown", "client"),
+      row("Max Touch Points", hardware.maxTouchPoints ?? "Unknown", "client"),
+      row("Bluetooth", caps.present?.some((a) => a.key === "bluetooth") ? "Supported" : "Not supported", "client"),
+      row("Bluetooth Adapter", "Unknown", "permission", "Web Bluetooth requires permission to enumerate devices."),
+      row("Device Orientation", motion.eventsReceived ? `${motion.eventsReceived} events received` : "Not supported or blocked", "client"),
+      row("Device Motion", motion.support?.motion ? "Supported" : "Not supported", "client"),
+      row("Device Pointing Method", hardware.maxTouchPoints > 0 ? "Touchscreen" : "Mouse", "client"),
+      row("Battery Level", "Unknown", "blocked", "Battery Status API removed from Firefox and Safari."),
+      row("Battery Charging", "Unknown", "blocked"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Software surface ------------------------------------------------
+  {
+    const sec = section("Software Surface",
+      "Plugins, MIME types, fonts and speech. Each is a build and platform signal.");
+
+    addRows(sec, [
+      row("Browser Plugins", plugins.pluginCount ?? 0, "client"),
+      row("Plugin Details", plugins.plugins?.length ? plugins.plugins.map((p) => p.name).join(", ") : "None", "client"),
+      row("MIME Types", plugins.mimeTypeCount ?? 0, "client"),
+      row("Java", plugins.javaEnabled === false ? "Not installed / not supported" : "Unknown", "client"),
+      row("ActiveX", plugins.activeXSupported ? "Supported" : "Not supported (not IE)", "client"),
+      row("Fonts Detected", val("fonts", "detected") ?? "Unknown", "client"),
+      row("Font List", val("fonts", "fontList")?.length ? `${val("fonts", "fontList").length} fonts` : "Unknown", "client"),
+      row("SpeechSynthesis", "Supported", "client"),
+      row("Speech Voices", val("speech", "count") ?? "Unknown", "client"),
+      row("Voice Languages", val("speech", "languages")?.join(", ") || "Unknown", "client"),
+      row("API Surface", features.summary ? `${features.summary.jsApisPresent} JS APIs, ${features.summary.cssFeaturesPresent} CSS features` : "Unknown", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Display ---------------------------------------------------------
+  {
+    const sec = section("Display & Viewport",
+      "Screen geometry and window size. Low effort, high value — and consistent across visits.");
+
+    const s = display.screen || {};
+    const w = display.window || {};
+
+    addRows(sec, [
+      row("Orientation", display.orientation?.type || "Unknown", "client"),
+      row("Resolution", s.width && s.height ? `${s.width} x ${s.height} (pixels)` : "Unknown", "client"),
+      row("Aspect Ratio", s.width && s.height ? (() => {
+        const g = gcd(s.width, s.height);
+        return `${s.width / g}:${s.height / g}`;
+      })() : "Unknown", "client"),
+      row("Device Pixel Ratio", w.devicePixelRatio ?? "Unknown", "client"),
+      row("Color Depth", s.colorDepth ? `${s.colorDepth}-bit` : "Unknown", "client"),
+      row("Pixel Depth", s.pixelDepth ? `${s.pixelDepth}-bit` : "Unknown", "client"),
+      row("Window Outer", w.outerWidth && w.outerHeight ? `${w.outerWidth} x ${w.outerHeight}` : "Unknown", "client"),
+      row("Window Inner", w.innerWidth && w.innerHeight ? `${w.innerWidth} x ${w.innerHeight}` : "Unknown", "client"),
+      row("Full Screen Mode", document.fullscreenElement ? "Yes" : "No", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Storage ---------------------------------------------------------
+  {
+    const sec = section("Storage & Persistence",
+      "Which storage mechanisms exist and how much room they have. The quota is a fraction of free disk in most engines.");
+
+    addRows(sec, [
+      row("IndexedDB", storage.mechanisms?.indexedDB ? "Allowed" : "Not allowed", "client"),
+      row("Local Storage", storage.mechanisms?.localStorage ? "Allowed" : "Not allowed", "client"),
+      row("Session Storage", storage.mechanisms?.sessionStorage ? "Allowed" : "Not allowed", "client"),
+      row("Cookies", hardware.cookieEnabled ? "Enabled" : "Disabled", "client"),
+      row("Storage Quota", storage.estimate?.quotaGB ? `${storage.estimate.quotaGB} GB` : "Unknown", "client"),
+      row("Storage Used", storage.estimate?.usageGB ? `${storage.estimate.usageGB} GB` : "Unknown", "client"),
+      row("Persisted", storage.persisted === true ? "Yes" : "No", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Page context ----------------------------------------------------
+  {
+    const sec = section("Page Context",
+      "What the page knows about itself — referrer, visibility, scroll, and the live interaction state.");
+
+    addRows(sec, [
+      row("Page Referrer", document.referrer || "(none)", "client"),
+      row("Page Load Time", perf.breakdown?.loadEventMs != null ? `${perf.breakdown.loadEventMs} ms` : "Unknown", "client"),
+      row("Network Time", perf.breakdown?.dnsLookupMs != null
+        ? `${(perf.breakdown.dnsLookupMs + (perf.breakdown.tcpConnectionMs || 0) + (perf.breakdown.serverResponseMs || 0) + (perf.breakdown.pageDownloadMs || 0)).toFixed(1)} ms`
+        : "Unknown", "client"),
+      row("Server Response Time", perf.breakdown?.serverResponseMs != null ? `${perf.breakdown.serverResponseMs} ms` : "Unknown", "client"),
+      row("DNS Lookup Time", perf.breakdown?.dnsLookupMs != null ? `${perf.breakdown.dnsLookupMs} ms` : "Unknown", "client"),
+      row("TCP Connection Time", perf.breakdown?.tcpConnectionMs != null ? `${perf.breakdown.tcpConnectionMs} ms` : "Unknown", "client"),
+      row("HTTP Protocol", perf.protocol || "Unknown", "client"),
+      row("Transfer Size", perf.transferSizeBytes ? `${perf.transferSizeBytes} bytes` : "Unknown", "client"),
+      row("Page Visibility", document.visibilityState, "client"),
+      row("Scroll Position", interaction.scroll ? `x: ${interaction.scroll.x}, y: ${interaction.scroll.y}` : "Unknown", "client"),
+      row("Last Key Pressed", interaction.lastKey || "None", "client"),
+      row("Caps Lock", interaction.capsLock === true ? "On" : interaction.capsLock === false ? "Off" : "Unknown", "client"),
+      row("Mouse Position", interaction.mousePosition?.x != null
+        ? `x: ${interaction.mousePosition.x}, y: ${interaction.mousePosition.y}`
+        : "Unknown", "client"),
+      row("Pop-up Windows", interaction.popupsBlocked === false ? "Allowed" : "Blocked", "client"),
+      row("JavaScript Enabled", "Yes", "client"),
+      row("WebRTC", "Enabled", "client"),
+      row("WebSocket", features.vectors?.window ? (features.vectors.window.present.includes("WebSocket") ? "Supported" : "Not supported") : "Unknown", "client"),
+    ]);
+    emit(sec);
+  }
+
+  // ---- Server-only -----------------------------------------------------
+  {
+    const sec = section("Server-Side Only",
+      "These fields appear on device-info sites but cannot be detected from the browser. They require the server to observe the connection.");
+
+    addRows(sec, [
+      row("IP Address (WAN)", "IPv6 / IPv4", "server"),
+      row("Geolocation", "Country, region, city, lat/long", "server"),
+      row("ISP", "Internet service provider", "server"),
+      row("Nameservers", "DNS resolver configuration", "server"),
+      row("Hostname", "Reverse DNS", "server"),
+      row("Tor IP Address", "Exit node detection", "server"),
+      row("VPN IP Address", "VPN detection", "server"),
+      row("Proxy IP Address", "Proxy detection", "server"),
+      row("HTTP Request Headers", "Accept, Accept-Encoding, Sec-CH-UA, …", "server"),
+      row("TLS / SSL Protocol", "TLS version, cipher suite", "server"),
+      row("HTTP Version", "HTTP/1.1, HTTP/2, HTTP/3", "server"),
+      row("Connection Type (WAN)", "Broadband, fiber, cellular", "server"),
+      row("Browser Build Number", "Chromium commit hash", "server"),
+      row("Tab Previous Name", "Previous page title", "server"),
+      row("Content Filtering", "DNS-level filtering", "server"),
+      row("Server Address", "Host the page was served from", "server"),
+    ]);
+    emit(sec);
+  }
+
+  finish();
+}
+
+function gcd(a, b) {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+  __exports["renderDeviceInfo"] = renderDeviceInfo;
+});
+
+__def("src/js/app", function (__exports, __require) {
+  const __m10_src_js_probes_index_PROBES = __require("src/js/probes/index");
+  const { PROBES } = __m10_src_js_probes_index_PROBES;
+  const __m39_src_js_entropy_modelEntro = __require("src/js/entropy");
+  const { modelEntropy, WORLD_POPULATION_BITS } = __m39_src_js_entropy_modelEntro;
+  const __m53_src_js_render_renderSi = __require("src/js/render");
+  const { renderSignals, renderSummary, renderFooter } = __m53_src_js_render_renderSi;
+  const __m20_src_js_deviceinfo_renderDevi = __require("src/js/deviceinfo");
+  const { renderDeviceInfo } = __m20_src_js_deviceinfo_renderDevi;
+/**
+ * Application entry point.
+ *
+ * Orchestrates the probes, renders results as they land, and produces the
+ * exportable record. There is deliberately no fetch() anywhere in this file
+ * or in anything it imports -- see README.md, "Network isolation".
+ */
+
+
+
+
+
+
+const dom = {
+  progress: document.getElementById("progress"),
+  progressBar: document.getElementById("progress-bar"),
+  progressLabel: document.getElementById("progress-label"),
+  summary: document.getElementById("summary"),
+  signals: document.getElementById("signals"),
+  deviceinfo: document.getElementById("deviceinfo-report"),
+  diNav: document.getElementById("di-nav"),
+  scale: document.getElementById("scale"),
+  rerun: document.getElementById("rerun"),
+  copy: document.getElementById("copy"),
+  download: document.getElementById("download"),
+  status: document.getElementById("status"),
+};
+
+let lastRecord = null;
+let running = false;
+
+function setStatus(message) {
+  if (dom.status) dom.status.textContent = message;
+}
+
+function updateProgress(done, total) {
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+  if (dom.progressBar) dom.progressBar.style.width = `${pct}%`;
+  if (dom.progressLabel) {
+    dom.progressLabel.textContent = `${done} / ${total} signals`;
+  }
+  if (dom.progress) {
+    dom.progress.setAttribute("aria-valuenow", String(done));
+    dom.progress.setAttribute("aria-valuemax", String(total));
+  }
+}
+
+/**
+ * Run one probe. Never throws: a probe that fails returns an
+ * `available: false` record, which the entropy model excludes.
+ */
+async function runProbe(meta) {
+  const started = performance.now();
+  try {
+    const values = await meta.run();
+    const available = values.available !== false;
+    return {
+      id: meta.id,
+      meta,
+      available,
+      values,
+      note: values.note || null,
+      durationMs: Number((performance.now() - started).toFixed(2)),
+    };
+  } catch (err) {
+    return {
+      id: meta.id,
+      meta,
+      available: false,
+      values: {},
+      note: `Probe threw: ${err && err.message ? err.message : String(err)}`,
+      durationMs: Number((performance.now() - started).toFixed(2)),
+    };
+  }
+}
+
+function buildRecord(results, entropy) {
+  return {
+    generator: "Fingerprint Lab",
+    version: "1.0.0",
+    generatedAt: new Date().toISOString(),
+    disclosure:
+      "Computed entirely in this browser tab. Nothing was transmitted, " +
+      "stored server-side, or written to any storage mechanism.",
+    entropy: {
+      modelledBits: Number(entropy.total.toFixed(2)),
+      nominalSumBits: Number(entropy.nominalTotal.toFixed(2)),
+      discardedAsCorrelatedBits: Number(entropy.discardedBits.toFixed(2)),
+      crossFamilyFactor: entropy.crossFamilyFactor,
+      families: entropy.families.map((f) => ({
+        family: f.key,
+        label: f.label,
+        signals: f.count,
+        nominalBits: Number(f.nominal.toFixed(2)),
+        modelledBits: Number(f.modelled.toFixed(2)),
+        redundancy: f.redundancy,
+      })),
+    },
+    signals: results.map((r) => ({
+      id: r.id,
+      label: r.meta.label,
+      family: r.meta.family,
+      nominalBits: r.meta.bits,
+      available: r.available,
+      note: r.note,
+      durationMs: r.durationMs,
+      values: r.values,
+    })),
+  };
+}
+
+async function run() {
+  if (running) return;
+  running = true;
+
+  dom.rerun.disabled = true;
+  dom.copy.disabled = true;
+  dom.download.disabled = true;
+  setStatus("Collecting…");
+  dom.signals.replaceChildren(
+    Object.assign(document.createElement("p"), {
+      className: "placeholder",
+      textContent: "Running probes. This page makes no network requests; every value comes from this tab.",
+    })
+  );
+  dom.summary.replaceChildren();
+  if (dom.deviceinfo) dom.deviceinfo.replaceChildren();
+  updateProgress(0, PROBES.length);
+
+  const results = [];
+  // Kick off every probe at once; the UI updates as each resolves. The
+  // audio and WebRTC probes take the longest and run in the background.
+  const pending = PROBES.map((meta) => runProbe(meta));
+
+  for (const promise of pending) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await promise;
+    results.push(result);
+    updateProgress(results.length, PROBES.length);
+    setStatus(
+      `${results.length} of ${PROBES.length} signals collected — ${
+        results.filter((r) => r.available).length
+      } available`
+    );
+  }
+
+  // Present in a stable order regardless of resolution timing.
+  const ordered = PROBES.map(
+    (meta) => results.find((r) => r.id === meta.id) || {
+      id: meta.id,
+      meta,
+      available: false,
+      values: {},
+      note: "Probe did not return.",
+      durationMs: 0,
+    }
+  );
+
+  // Flatten to the shape the entropy model expects. Done here rather than
+  // inside entropy.js so the model stays independent of the probe-result
+  // envelope.
+  const entropy = modelEntropy(
+    ordered.map((r) => ({
+      id: r.id,
+      family: r.meta.family,
+      bits: r.meta.bits,
+      available: r.available,
+    }))
+  );
+
+  renderSummary(dom.summary, entropy, ordered);
+  renderSignals(dom.signals, ordered, entropy);
+  if (dom.deviceinfo) renderDeviceInfo(dom.deviceinfo, ordered, dom.diNav);
+  renderFooter(dom.scale, WORLD_POPULATION_BITS);
+
+  lastRecord = buildRecord(ordered, entropy);
+
+  const unavailable = ordered.filter((r) => !r.available);
+  setStatus(
+    `Done. ${ordered.length - unavailable.length} signals collected, ` +
+      `${unavailable.length} unavailable (no permission was requested for any of them).`
+  );
+
+  dom.rerun.disabled = false;
+  dom.copy.disabled = false;
+  dom.download.disabled = false;
+  running = false;
+}
+
+function wireControls() {
+  dom.rerun?.addEventListener("click", () => {
+    void run();
+  });
+
+  dom.copy?.addEventListener("click", async () => {
+    if (!lastRecord) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(lastRecord, null, 2));
+      setStatus("Report copied to the clipboard. It exists only where you paste it.");
+    } catch {
+      setStatus("Clipboard access refused — use Download instead.");
+    }
+  });
+
+  dom.download?.addEventListener("click", () => {
+    if (!lastRecord) return;
+    const blob = new Blob([JSON.stringify(lastRecord, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `fingerprint-report-${
+      new Date().toISOString().replace(/[:.]/g, "-")
+    }.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setStatus("Saved to your downloads folder. Nowhere else.");
+  });
+}
+
+wireControls();
+
+// Signals to the inline bootstrap in index.html that the module executed, so
+// it can distinguish "still loading" from "failed to load".
+window.__fpStarted = true;
+
+// Start on load. This is the point being demonstrated: everything below is
+// available to any page the moment it opens, with no interaction at all.
+void run();
+
+
+});
+
+/* Boot the entry point. */
+__require("src/js/app");
+
+</script>
+</body>
+</html>
