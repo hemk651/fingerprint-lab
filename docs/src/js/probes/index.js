@@ -26,7 +26,6 @@ import { probe as network } from "./network.js";
 import { probe as webrtc } from "./webrtc.js";
 import { probe as math } from "./math.js";
 import { probe as timing } from "./timing.js";
-import { probe as osBrowser } from "./os-browser.js";
 import { probe as clientHints } from "./client-hints.js";
 import { probe as mediaDevices } from "./media-devices.js";
 import { probe as deviceCapabilities } from "./device-capabilities.js";
@@ -56,7 +55,6 @@ export const PROBES = [
   webrtc,
   math,
   timing,
-  osBrowser,
   clientHints,
   mediaDevices,
   deviceCapabilities,

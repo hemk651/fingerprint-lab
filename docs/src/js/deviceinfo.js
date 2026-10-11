@@ -83,7 +83,6 @@ export function renderDeviceInfo(container, results) {
   };
 
   const browser = results.find((r) => r.id === "browser-detection")?.values || {};
-  const uaParsed = results.find((r) => r.id === "os-browser")?.values || {};
   const hints = results.find((r) => r.id === "client-hints")?.values || {};
   const media = results.find((r) => r.id === "media-devices")?.values || {};
   const caps = results.find((r) => r.id === "device-capabilities")?.values || {};
@@ -125,6 +124,7 @@ export function renderDeviceInfo(container, results) {
       row("Operating System", browser.os || "Unknown", "client"),
       row("OS Version", browser.osVersion || "Unknown", "client"),
       row("Architecture (from UA)", browser.arch || "Unknown", "client"),
+      row("Platform Version", hints.platformVersion || "Unknown", "client"),
     ];
 
     if (browser.automation?.automated) {
@@ -153,8 +153,8 @@ export function renderDeviceInfo(container, results) {
     const sec = section("Device Type & Operating System",
       "What the machine claims to be, versus what the browser's own high-entropy hints reveal.");
 
-    const osName = uaParsed.os || "Unknown";
-    const osDetail = uaParsed.osVersion;
+    const osName = browser.os || "Unknown";
+    const osDetail = browser.osVersion;
     const winLabel = hints.platformVersionLabel;
 
     // Compose the OS display: prefer the Client Hints label for Windows,
@@ -167,13 +167,13 @@ export function renderDeviceInfo(container, results) {
     }
 
     addRows(sec, [
-      row("Device Type / Model", uaParsed.deviceType || "Unknown"),
+      row("Device Type / Model", browser.deviceType || "Unknown"),
       row("Operating System", osDisplay, "client",
         osName === "Windows" && !winLabel ? "UA says Windows 10/11; only Client Hints distinguish them." : null),
       row("True OS Core", winLabel || "Unknown", winLabel ? "client" : "blocked",
         winLabel ? null : "platformVersion withheld — Firefox and Safari do not implement Client Hints."),
-      row("CPU Architecture", hints.architecture || uaParsed.bitness || "Unknown", "client"),
-      row("Bitness", hints.bitness || uaParsed.bitness || "Unknown", "client"),
+      row("CPU Architecture", hints.architecture || browser.arch || "Unknown", "client"),
+      row("Bitness", hints.bitness || browser.arch || "Unknown", "client"),
       row("Model", hints.model || "(empty)", "client"),
     ]);
     container.append(sec);
@@ -188,10 +188,10 @@ export function renderDeviceInfo(container, results) {
     const brandStr = brands ? brands.map((b) => `${b.brand} ${b.version}`).join(", ") : null;
 
     addRows(sec, [
-      row("Browser", brandStr || uaParsed.browser || "Unknown", "client"),
-      row("True Browser Core", brandStr || uaParsed.browser || "Unknown", brandStr ? "client" : "blocked",
+      row("Browser", brandStr || browser.browser || "Unknown", "client"),
+      row("True Browser Core", brandStr || browser.core || "Unknown", brandStr ? "client" : "blocked",
         brandStr ? null : "Sec-CH-UA withheld; falling back to the User-Agent string."),
-      row("Engine", uaParsed.engine || "Unknown", "client"),
+      row("Engine", browser.engine || "Unknown", "client"),
       row("Mobile", hints.mobile === true ? "Yes" : hints.mobile === false ? "No" : "Unknown", "client"),
       row("Platform", hints.platform || "Unknown", "client"),
       row("Platform Version", hints.platformVersion || "Unknown", "client"),

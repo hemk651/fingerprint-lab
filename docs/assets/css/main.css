@@ -643,8 +643,11 @@ code {
   word-break: break-word;
 }
 
-/* Table-scoped tag styles — must not bleed into inline header badges */
+/* Table-scoped tag styles — must not bleed into inline header badges.
+   display:table-cell is required because the generic .di-tag rule sets
+   inline-block, which would break the table layout. */
 .di-table .di-tag {
+  display: table-cell;
   padding: 0.45rem 1rem 0.45rem 0.5rem;
   text-align: right;
   vertical-align: top;
