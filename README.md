@@ -45,21 +45,48 @@ different project with different obligations, not a config change to this one.
 
 ## Quick start
 
-Because the code is split into ES modules, it needs a real origin. Opening
-`index.html` from the filesystem will fail silently.
+Nothing to install. There is no `package.json`, no `requirements.txt`, no lock
+file, and no install step. The site is hand-written HTML, CSS and JavaScript.
 
 ```bash
-cd docs
-python3 -m http.server 8000
-# → http://localhost:8000
+./run.sh serve     # → http://localhost:8000
+./run.sh verify    # static checks, zero dependencies
+./run.sh build     # standalone single-file build
+./run.sh open      # build, then open it in a browser
 ```
 
-Any static server works. No build step, no dependencies, no bundler.
+The equivalent raw command is `cd docs && python3 -m http.server 8000`. Any
+static server works.
 
 Then, before reading anything: open your browser's Network panel and reload.
 The only requests are the document, the stylesheet, and the scripts. To make
 the point unambiguously, disconnect from the network entirely and reload again
 — the page still works, because there is nothing to fetch.
+
+### Opening the file directly
+
+The source uses ES modules, which browsers refuse to load over `file://`
+(CORS: a null origin cannot load a module script). Opening
+`docs/index.html` by double-clicking therefore renders an error banner that
+tells you to use a server.
+
+To get a file that works by double-clicking:
+
+```bash
+./run.sh build      # → dist/fingerprint-lab.html
+```
+
+That produces one self-contained 168 KB file with every module inlined and
+the stylesheet embedded. No server, no dependencies.
+
+### Why no dependencies
+
+A fingerprinting tool has an obvious supply-chain problem: every package it
+installs is code with network access to the page that measures you. Removing
+the dependency tree removes the question. The verifier in `tools/verify.py`
+uses only the Python standard library and asserts the invariants that would
+otherwise be at risk — no network APIs in shipped code, no external resources,
+no bare imports.
 
 ### Deploying to GitHub Pages
 
@@ -117,9 +144,38 @@ docs/
         ├── performance-detail.js  Navigation Timing breakdown
         ├── page-interaction.js  Live mouse/keys/scroll/visibility
         └── timing.js      Clock precision and navigation timing
+tools/
+├── verify.py               Dependency-free verification (standard library only)
+└── build-standalone.mjs    Bundles the site into one file (node, optional)
 tests/
-└── verify-browser.mjs      Browser detection is category one; smoke checks
+├── audit.mjs               Full live audit of the rendered page
+├── verify-browser.mjs      Browser detection is category one
+└── verify-standalone.mjs   Confirms the standalone build runs from file://
 ```
+
+### Verification
+
+`tools/verify.py` is the primary check and needs nothing but Python 3.9+:
+
+```bash
+./run.sh verify
+```
+
+It asserts, among other things:
+
+- every JavaScript file parses (via `node --check` when node is present)
+- every relative import resolves, and there are no bare imports
+- all 27 probes are registered exactly once, with families that exist
+- the standalone build is in step with the sources
+- **no network APIs in shipped code** and no external resources in the HTML
+
+The last item is the point: the privacy claim is checked mechanically rather
+than asserted in prose. A future change that introduced a `fetch()` would fail
+the build.
+
+The `tests/*.mjs` scripts drive a real browser and therefore need Playwright,
+which is the only optional dependency in the project — and it is not required
+to run, build, or verify anything.
 
 ### Probe contract
 
