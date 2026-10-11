@@ -1,6 +1,5 @@
 /**
  * AudioContext fingerprint.
- *
  * An oscillator is rendered offline through a DynamicsCompressor node and the
  * resulting samples are summed. The compressor's curve is implemented
  * differently per engine and per platform, so identical input produces a
@@ -10,6 +9,8 @@
  * Firefox returns a constant buffer, and a null result is reported as such
  * rather than silently contributing zero entropy.
  */
+import { sha256 } from "../hash.js";
+
 export const probe = {
   id: "audio",
   label: "AudioContext processing",
@@ -62,7 +63,6 @@ export const probe = {
         };
       }
 
-      const { sha256 } = await import("../hash.js");
       return {
         available: true,
         sampleLength: channel.length,

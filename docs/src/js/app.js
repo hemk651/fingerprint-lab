@@ -22,6 +22,7 @@ const dom = {
   summary: document.getElementById("summary"),
   signals: document.getElementById("signals"),
   deviceinfo: document.getElementById("deviceinfo-report"),
+  diNav: document.getElementById("di-nav"),
   scale: document.getElementById("scale"),
   rerun: document.getElementById("rerun"),
   copy: document.getElementById("copy"),
@@ -173,7 +174,7 @@ async function run() {
 
   renderSummary(dom.summary, entropy, ordered);
   renderSignals(dom.signals, ordered, entropy);
-  if (dom.deviceinfo) renderDeviceInfo(dom.deviceinfo, ordered);
+  if (dom.deviceinfo) renderDeviceInfo(dom.deviceinfo, ordered, dom.diNav);
   renderFooter(dom.scale, WORLD_POPULATION_BITS);
 
   lastRecord = buildRecord(ordered, entropy);
@@ -223,6 +224,10 @@ function wireControls() {
 }
 
 wireControls();
+
+// Signals to the inline bootstrap in index.html that the module executed, so
+// it can distinguish "still loading" from "failed to load".
+window.__fpStarted = true;
 
 // Start on load. This is the point being demonstrated: everything below is
 // available to any page the moment it opens, with no interaction at all.

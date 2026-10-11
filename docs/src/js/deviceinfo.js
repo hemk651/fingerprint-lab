@@ -61,15 +61,54 @@ function addRows(sec, rows) {
   for (const r of rows) tbody.append(r);
 }
 
+/** Slugify a section title into a stable anchor id. */
+function slugify(title) {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 /**
  * Build the whole report.
  *
  * `results` is the array of probe results in registry order. Values are read
  * defensively: anything missing becomes a [blocked] or [server] row rather
  * than a gap, so the report always shows the full shape of what was asked.
+ *
+ * `nav` is the category navigation. It is built as sections are appended,
+ * because the section list is the source of truth — a hand-maintained nav
+ * would silently drift the next time a section is renamed.
  */
-export function renderDeviceInfo(container, results) {
+export function renderDeviceInfo(container, results, nav) {
   container.replaceChildren();
+  if (nav) nav.replaceChildren();
+
+  // Append a section to the DOM and register it in the category nav.
+  const sections = [];
+  const emit = (sec) => {
+    const title = sec.querySelector(".di-section-title")?.textContent || "Section";
+    const id = slugify(title);
+    sec.id = `di-${id}`;
+    sec.dataset.section = title;
+    container.append(sec);
+    sections.push({ id: sec.id, title });
+  };
+
+  const finish = () => {
+    if (!nav) return;
+    for (const s of sections) {
+      const link = el("a", "di-nav-link", s.title);
+      link.href = `#${s.id}`;
+      nav.append(link);
+    }
+    // The probe cards are a separate top-level section rendered after this
+    // report. Without an explicit link they sit at the very bottom of a long
+    // page with no way to reach them.
+    const cards = el("a", "di-nav-link di-nav-link-external", "↓ Entropy signal cards");
+    cards.href = "#signals";
+    nav.append(cards);
+  };
 
   const byId = new Map(results.map((r) => [r.id, r]));
   const val = (id, key) => {
@@ -145,7 +184,7 @@ export function renderDeviceInfo(container, results) {
     }
 
     addRows(sec, rows);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- User Agent Analysis ----------------------------------------------
@@ -172,7 +211,7 @@ export function renderDeviceInfo(container, results) {
     uaRows.push(row("Engine Tokens Present", tokens.engineTokens?.length ? tokens.engineTokens.join(", ") : "None", "client"));
 
     addRows(sec, uaRows);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Browser Identity Strings ------------------------------------------
@@ -198,7 +237,7 @@ export function renderDeviceInfo(container, results) {
       row("User-Agent Hash (SHA-256)", identity.userAgentHash || "unavailable", "client",
         "A stable identifier for the exact UA string. Computed in this tab."),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Client Hints (full) -----------------------------------------------
@@ -222,7 +261,7 @@ export function renderDeviceInfo(container, results) {
       row("WoW64", hints.wow64 === true ? "Yes" : hints.wow64 === false ? "No" : "Unknown", "client",
         "WoW64 means a 32-bit browser running on 64-bit Windows."),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Browser Capabilities ----------------------------------------------
@@ -252,7 +291,7 @@ export function renderDeviceInfo(container, results) {
       : "Unknown", "client"));
 
     addRows(sec, capRows);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Device & OS -----------------------------------------------------
@@ -283,7 +322,7 @@ export function renderDeviceInfo(container, results) {
       row("Bitness", hints.bitness || browser.arch || "Unknown", "client"),
       row("Model", hints.model || "(empty)", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Browser ---------------------------------------------------------
@@ -307,7 +346,7 @@ export function renderDeviceInfo(container, results) {
       row("Web Driver (automation)", val("hardware", "webdriver") ? "Yes — automated browser" : "No", "client"),
       row("PDF Viewer Enabled", val("hardware", "pdfViewerEnabled") ? "Yes" : "No", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Network ---------------------------------------------------------
@@ -337,7 +376,7 @@ export function renderDeviceInfo(container, results) {
       row("Save Data", network.saveData ? "Yes" : "No", "client"),
       row("Languages", Array.isArray(locale.languages) ? locale.languages.join(", ") : "Unknown", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Date, time & locale ---------------------------------------------
@@ -354,7 +393,7 @@ export function renderDeviceInfo(container, results) {
       row("Calendar", locale.calendar || "Unknown", "client"),
       row("Numbering System", locale.numberingSystem || "Unknown", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Fingerprinting resistance ---------------------------------------
@@ -380,7 +419,7 @@ export function renderDeviceInfo(container, results) {
       row("Ad Blocker", adblock.adBlockerDetected ? "Detected" : "Not detected", "client"),
       row("Ghostery Extension", adblock.ghosteryDetected ? "Detected" : "Not detected", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Media devices ---------------------------------------------------
@@ -398,7 +437,7 @@ export function renderDeviceInfo(container, results) {
       row("Audio / Microphone Permission", "Not granted", "permission",
         "Permission required to detect correct number of devices and their labels."),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Hardware --------------------------------------------------------
@@ -423,7 +462,7 @@ export function renderDeviceInfo(container, results) {
       row("Battery Level", "Unknown", "blocked", "Battery Status API removed from Firefox and Safari."),
       row("Battery Charging", "Unknown", "blocked"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Software surface ------------------------------------------------
@@ -444,7 +483,7 @@ export function renderDeviceInfo(container, results) {
       row("Voice Languages", val("speech", "languages")?.join(", ") || "Unknown", "client"),
       row("API Surface", features.summary ? `${features.summary.jsApisPresent} JS APIs, ${features.summary.cssFeaturesPresent} CSS features` : "Unknown", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Display ---------------------------------------------------------
@@ -469,7 +508,7 @@ export function renderDeviceInfo(container, results) {
       row("Window Inner", w.innerWidth && w.innerHeight ? `${w.innerWidth} x ${w.innerHeight}` : "Unknown", "client"),
       row("Full Screen Mode", document.fullscreenElement ? "Yes" : "No", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Storage ---------------------------------------------------------
@@ -486,7 +525,7 @@ export function renderDeviceInfo(container, results) {
       row("Storage Used", storage.estimate?.usageGB ? `${storage.estimate.usageGB} GB` : "Unknown", "client"),
       row("Persisted", storage.persisted === true ? "Yes" : "No", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Page context ----------------------------------------------------
@@ -517,7 +556,7 @@ export function renderDeviceInfo(container, results) {
       row("WebRTC", "Enabled", "client"),
       row("WebSocket", features.vectors?.window ? (features.vectors.window.present.includes("WebSocket") ? "Supported" : "Not supported") : "Unknown", "client"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
 
   // ---- Server-only -----------------------------------------------------
@@ -543,8 +582,10 @@ export function renderDeviceInfo(container, results) {
       row("Content Filtering", "DNS-level filtering", "server"),
       row("Server Address", "Host the page was served from", "server"),
     ]);
-    container.append(sec);
+    emit(sec);
   }
+
+  finish();
 }
 
 function gcd(a, b) {

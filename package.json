@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "cd docs && python3 -m http.server 8000",
-    "test": "node tests/verify-browser.mjs"
+    "test": "node tests/verify-browser.mjs",
+    "build": "node tools/build-standalone.mjs",
+    "audit": "node tests/audit.mjs"
   },
   "license": "MIT"
 }

@@ -550,6 +550,70 @@ code {
   margin-bottom: 3rem;
 }
 
+/* Category nav. Sticky so the 17 report sections stay reachable without
+   scrolling back up through the signal cards. */
+.di-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 1.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  scroll-margin-top: 4.5rem;
+}
+
+.di-nav-link {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.di-nav-link:hover { border-color: var(--accent); color: var(--accent); }
+.di-nav-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The link that jumps out of the report to the card section below. */
+.di-nav-link-external {
+  border-color: var(--accent);
+  color: var(--accent);
+  margin-left: auto;
+}
+
+/* Anchor targets sit below the sticky nav. */
+.di-section { scroll-margin-top: 5rem; }
+
+/* Sections targeted by the nav get focus via tabindex=-1; suppress the ring
+   on the container itself but keep it for keyboard users navigating to it. */
+#signals:focus { outline: none; }
+#signals:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* --- Signals heading ---------------------------------------------------- */
+
+.signals-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.signals-blurb {
+  margin: 0 0 1.75rem;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  max-width: 52rem;
+  line-height: 1.5;
+}
+
 .di-header h2 {
   margin: 0 0 0.5rem;
   font-size: 1.35rem;
@@ -688,6 +752,38 @@ code {
   color: var(--text-faint);
   border: 1px dashed var(--border-bright);
   border-radius: var(--radius);
+}
+
+/* --- Fatal load failure ------------------------------------------------ */
+
+.fatal {
+  margin: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--warn);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  max-width: 46rem;
+}
+
+.fatal h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.1rem;
+  color: var(--warn);
+}
+
+.fatal p {
+  margin: 0 0 0.9rem;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+.fatal p:last-child { margin-bottom: 0; }
+
+.fatal code {
+  padding: 0.25em 0.5em;
+  font-size: 0.9em;
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

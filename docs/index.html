@@ -75,10 +75,9 @@
 
   <section id="summary" class="summary" aria-live="polite" aria-busy="true"></section>
 
-  <section id="signals" class="signals" aria-live="polite">
-    <p class="placeholder">Running probes.</p>
-  </section>
-
+  <!-- Category one: the Device Info report. Deliberately placed above the
+       entropy signal cards so browser detection is the first thing read,
+       not buried 10,000px behind 27 probe cards. -->
   <section id="deviceinfo" class="deviceinfo" aria-live="polite" aria-busy="true">
     <div class="di-header">
       <h2>Device Info Report</h2>
@@ -92,7 +91,18 @@
         sites but cannot be detected from the browser.
       </p>
     </div>
+    <nav id="di-nav" class="di-nav" aria-label="Report categories"></nav>
     <div id="deviceinfo-report"></div>
+  </section>
+
+  <section id="signals" class="signals" aria-live="polite" tabindex="-1">
+    <h2 class="signals-title">Entropy signals</h2>
+    <p class="signals-blurb">
+      Each of the 27 probes below, grouped by family, with the value it
+      contributed to the distinctiveness estimate above. This is the working;
+      the Device Info Report above is the readable version.
+    </p>
+    <p class="placeholder">Running probes.</p>
   </section>
 
   <section id="scale" class="scale"></section>
@@ -120,6 +130,62 @@
 
 </main>
 
+<!--
+  The app is written as ES modules, which browsers refuse to load over the
+  file:// protocol (CORS: module scripts from a null origin are blocked).
+  If this page is opened by double-clicking index.html, the module never runs
+  and the page sits empty — so detect that case and say so, rather than
+  rendering a blank page that looks like a bug.
+-->
 <script type="module" src="src/js/app.js"></script>
+<script>
+  // Runs only if the module above failed to load or threw.
+  (function () {
+    var statusEl = document.getElementById("status");
+    var signalsEl = document.getElementById("signals");
+
+    function fail(title, detail) {
+      if (window.__fpStarted) return;           // app.js is running fine
+      if (statusEl) statusEl.innerHTML = "";
+      var banner = document.createElement("div");
+      banner.className = "fatal";
+      var h = document.createElement("h2");
+      h.textContent = title;
+      var p = document.createElement("p");
+      p.textContent = detail;
+      var pre = document.createElement("code");
+      pre.textContent = "cd docs && python3 -m http.server 8000";
+      banner.appendChild(h);
+      banner.appendChild(p);
+      var cmd = document.createElement("p");
+      cmd.appendChild(document.createTextNode("Then open "));
+      cmd.appendChild(pre);
+      banner.appendChild(cmd);
+      if (signalsEl) {
+        signalsEl.replaceChildren(banner);
+      }
+      if (statusEl) statusEl.textContent = "Not running — see the message below.";
+    }
+
+    if (location.protocol === "file:") {
+      fail(
+        "Opened directly from the filesystem",
+        "Browsers block JavaScript modules on file:// URLs, so this page cannot run when index.html is opened by double-clicking it. It needs to be served over http."
+      );
+      return;
+    }
+
+    // Not file:// — so if the module still did not start, it threw.
+    window.addEventListener("error", function (e) {
+      if (e.target && e.target.tagName === "SCRIPT") {
+        fail("Could not load the application script", "A script failed to load. Check the console and the Network panel.");
+      }
+    }, true);
+    setTimeout(function () {
+      if (window.__fpStarted) return;
+      fail("The application did not start", "The script loaded but never finished starting up. Open the browser console for the error.");
+    }, 8000);
+  })();
+</script>
 </body>
 </html>
